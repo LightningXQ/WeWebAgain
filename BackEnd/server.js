@@ -27,7 +27,7 @@ app.get('/', (req, res) => {
 
 // 예시: DB에서 데이터 가져오기
 app.get('/users', (req, res) => {
-  db.query('SELECT * FROM users', (err, results) => {
+  db.query('SELECT * FROM user', (err, results) => {
     if (err) {
       res.status(500).send('DB 조회 오류');
     } else {
