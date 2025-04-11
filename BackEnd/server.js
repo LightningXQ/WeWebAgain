@@ -1,39 +1,41 @@
-const express = require('express')
-const app = express()
-var bodyParser = require('body-parser')
-var fs = require('fs');
-const compression = require('compression');
-var mysql = require('mysql')
+const express = require('express');
+const mysql = require('mysql');
+const app = express();
+const port = 4000;
 
-
-
-
+// MariaDB 연결 설정
 const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'webagain',
+  host: 'db',            // 중요! 컨테이너 이름
+  user: 'user',
+  password: 'password',
+  database: 'mydb'
 });
 
-db.connect();
+// DB 연결 시도
+db.connect((err) => {
+  if (err) {
+    console.error('❌ DB 연결 실패:', err);
+    return;
+  }
+  console.log('✅ MariaDB 연결 성공');
+});
 
+// 간단한 API 테스트용
+app.get('/', (req, res) => {
+  res.send('백엔드 서버 실행 중');
+});
 
+// 예시: DB에서 데이터 가져오기
+app.get('/users', (req, res) => {
+  db.query('SELECT * FROM users', (err, results) => {
+    if (err) {
+      res.status(500).send('DB 조회 오류');
+    } else {
+      res.json(results);
+    }
+  });
+});
 
-app.get('/insert',function(request, response, next){
-  db.query(`insert into user values('1','rhqlthf1@pukyong.ac.kr', '고비솔', 'rhqlthf', now(), now(), null); `, function(err, result){
-    if(err){throw err}
-    response.send(`id=${result[0].username} pw=${result[0].password}`)
-    console.log(result);
-  })
-})
-
-app.get('/',function(request, response, next){
-  db.query('select * from user;', function(err, result){
-    if(err){throw err}
-    response.send(`id=${result[0].username} pw=${result[0].password}`)
-    console.log(result);
-  })
-})
-
-app.listen(3000, ()=> console.log('listening 3000'))
-
+app.listen(port, () => {
+  console.log(`✅ 서버가 http://localhost:${port} 에서 실행 중`);
+});
