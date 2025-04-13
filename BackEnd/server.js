@@ -2,14 +2,9 @@ const express = require('express');
 const mysql = require('mysql');
 const app = express();
 const port = 4000;
+const db = require('./db.js');
 
-// MariaDB 연결 설정
-const db = mysql.createConnection({
-  host: 'db',            // 중요! 컨테이너 이름
-  user: 'user',
-  password: 'password',
-  database: 'mydb'
-});
+
 
 // DB 연결 시도
 db.connect((err) => {
@@ -18,6 +13,7 @@ db.connect((err) => {
     return;
   }
   console.log('✅ MariaDB 연결 성공');
+
 });
 
 // 간단한 API 테스트용
