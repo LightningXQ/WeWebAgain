@@ -5,10 +5,10 @@ const port = 4000;
 
 // MariaDB 연결 설정
 const db = mysql.createConnection({
-  host: 'db',            // 중요! 컨테이너 이름
-  user: 'user',
-  password: 'password',
-  database: 'mydb'
+  host: 'webagain.c1sso6a8y8aj.ap-northeast-2.rds.amazonaws.com',            // 중요! 컨테이너 이름
+  user: 'admin',
+  password: '12345678',
+  database: 'webagain'
 });
 
 // DB 연결 시도
