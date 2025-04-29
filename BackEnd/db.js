@@ -2,7 +2,7 @@
 const mysql = require('mysql');
 
 const db = mysql.createConnection({
-  host: 'webagain-db.ctg002k6i7pc.ap-northeast-2.rds.amazonaws.com',
+  host: 'webagain.c1sso6a8y8aj.ap-northeast-2.rds.amazonaws.com',            // 중요! 컨테이너 이름
   user: 'admin',
   password: '12345678',
   database: 'webagain'

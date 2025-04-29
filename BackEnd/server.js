@@ -3,8 +3,7 @@ const mysql = require('mysql');
 const app = express();
 const port = 4000;
 const db = require('./db.js');
-
-
+const authRouter = require('./router/authRouter.js')
 
 // DB 연결 시도
 db.connect((err) => {
@@ -22,6 +21,9 @@ app.get('/', (req, res) => {
 });
 
 // 예시: DB에서 데이터 가져오기
+
+
+app.get('/auth', authRouter)
 app.get('/users', (req, res) => {
   db.query('SELECT * FROM user', (err, results) => {
     if (err) {
