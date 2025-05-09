@@ -30,11 +30,15 @@ const CustomAppBar = ({ logo }) => {
 
   return (
     <AppBar position="fixed" color="transparent" elevation={0} sx={{
-      minHeight: 80,
+      height: 80,
       backgroundColor: "white",
       justifyContent: "center",
+      zIndex: (theme) => theme.zIndex.drawer + 1,
     }}>
-      <Toolbar sx={{ justifyContent: "space-between" }}>
+      <Toolbar sx={{ 
+        justifyContent: "space-between",
+        height: "100%"
+      }}>
         <IconButton color="inherit" edge="start" aria-label="logo" sx={{ zIndex: 1 }} onClick={() => navigate('/')}>
           <img src={logo} alt="Logo" style={{ width: 56, height: 56 }} />
         </IconButton>
@@ -63,7 +67,8 @@ const CustomAppBar = ({ logo }) => {
 
         <Stack direction="row" spacing={3} sx={{ zIndex: 1 }}>
           <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/')}>Home</AppBarButton>
-          <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/signin')}>Sign In</AppBarButton>
+          <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/signup')}>Sign Up</AppBarButton>
+          {/* <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/test')}>test</AppBarButton> */}
           <AppBarButton variant="contained" size="large" sx={{ backgroundColor: "#3644C9", px: 4 }} onClick={() => navigate('/login')}>
             Log In
           </AppBarButton>

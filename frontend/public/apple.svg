@@ -1,0 +1,6 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+	<path 
+		fill="white" 
+		d="M0,29 Q0,0 29,0 H71 Q100,0 100,29 V71 Q100,100 71,100 H29 Q0,100 0,71 Z"
+	/>
+</svg>

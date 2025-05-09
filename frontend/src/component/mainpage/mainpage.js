@@ -18,11 +18,16 @@ import {
 	createTheme, 
 	ThemeProvider, 
 } from '@mui/material/styles';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
+import { DesktopDatePicker } from '@mui/x-date-pickers/DesktopDatePicker';
 
 // Modules
 import GradientBackground from '../common/gradient-background';
 import GradientButton from '../common/gradient-button';
 import CustomAppBar from '../common/custom-app-bar';
+import NaverMap from '../common/naver-map';
 
 // Declaration
 const logo = "/images/logo.png";
@@ -74,73 +79,77 @@ const Mainpage = () => {
 			<GradientBackground cover={cover}>
 				{/* 상단 네비게이션 바 */}
 				<CustomAppBar logo={logo} />
-				<Typography 
-					position="fixed" 
-					top="120px" 
-					variant='h4' 
-					color="#666666" 
-					mb={2} 
-					textAlign="center"
-				>
-					{ 
-						mode 
-							? "finding a minimum waiting time..."
-							: ""
-					}
-				</Typography>
-				<Card sx={{ 
-					width: 600, 
-					height: 550, 
-					borderRadius: 8, 
-					boxShadow: 20,
-					position: 'relative',  // 상대 위치 설정
-					overflow: 'visible',   // 그라데이션이 밖으로 나가도록
-					border: "1.5px solid #3644C9",
+				<Box sx={{
+					flex: 1,
+
+					display: "flex",
+					flexDirection: "row",
+
+					width: "100%",
+					marginTop: 10,
 				}}>
-					{/* 상단 그라데이션 */}
 					<Box sx={{
-						position: 'absolute',
-						top: 0,
-						left: 0,
-						right: 0,
-						height: 40,  // 그라데이션 높이
-						background: 'linear-gradient(to top, #2A8CFF 0%, #3068E4 29%, #3644C9 58%)',
-						borderTopLeftRadius: "28px",
-						borderTopRightRadius: "28px",
-					}} />
-
-					{/* 컨텐츠 */}
-					<CardContent sx={{ 
-						height: "100%", 
-						padding: 10, 
-						boxSizing: 'border-box',
-						position: 'relative',  // 컨텐츠가 그라데이션 위에 보이도록
-						zIndex: 1,
+						flex: 2.8,
+						backgroundColor: "#F8F8F8",
+						padding: 4,
 					}}>
-						<Typography variant='h5' fontWeight="bold" mb={2}>Location</Typography>
-
-						<Stack spacing={2} mb={5}>
-							<TextField fullWidth placeholder='출발지를 입력하세요.' />
-							<TextField fullWidth placeholder='도착지를 입력하세요.' />
+						<Box my={2}>
+							<Typography fontSize={24} mb={2} fontWeight="bold" sx={{
+							}}>
+								위치 설정
+							</Typography>
+							<TextField fullWidth placeholder="출발지를 입력하세요." sx={{
+								marginBottom: 2,
+							}} />
+							<TextField fullWidth placeholder="도착지를 입력하세요." sx={{
+								marginBottom: 6,
+							}} />
+							<Typography fontSize={24} mb={2} fontWeight="bold" sx={{
+							}}>
+								도착 예정 시간 설정
+							</Typography>
+							<LocalizationProvider dateAdapter={AdapterDayjs}>
+								<Stack direction="row" spacing={2} sx={{
+									justifyContent: "space-evenly",
+								}}>
+									<DesktopDatePicker label="날짜 선택" sx={{ width: 200, }}/>
+									<DesktopTimePicker label="시간 선택" sx={{ width: 200, }}/>
+								</Stack>
+							</LocalizationProvider>
+						</Box>
+					</Box>
+					<Stack direction="row" spacing={4} sx={{
+						flex: 7,
+						'& > *': {  // Stack의 모든 직계 자식 요소에 적용
+							flex: 1,
+							minWidth: 0  // flex item이 부모 컨테이너를 넘어가지 않도록 함
+						},
+						margin: 4,
+					}}>
+						<Card sx={{
+							borderRadius: 10,
+							border: "1.5px solid #3644C9"
+						}}>
+							<NaverMap />
+						</Card>
+						<Stack direction="column" spacing={4} sx={{
+							'& > *': {  // Stack의 모든 직계 자식 요소에 적용
+								flex: 1,
+								minWidth: 0  // flex item이 부모 컨테이너를 넘어가지 않도록 함
+							},
+							margin: 4,
+						}}>
+							<Card sx={{
+							}}>
+								fff
+							</Card>
+							<Card sx={{
+							}}>
+								fff
+							</Card>
 						</Stack>
-
-						<Typography variant='h5' fontWeight="bold" mb={2}>ETA</Typography>
-
-						<Stack direction="row" spacing={2} mb={5} alignItems="center">
-							<TextField placeholder='도착 예정 시간' inputProps={{ sx: { textAlign: 'center' } }} />
-							<Typography variant='h5' fontWeight="bold">:</Typography>
-							<TextField placeholder='도착 예정 시간' inputProps={{ sx: { textAlign: 'center' } }} />
-						</Stack>
-
-						<GradientButton onClick={handleSearch} sx={{
-							display: "block",
-							marginLeft: "auto",
-							marginRight: "auto",
-							width: "80%",
-							height: 56,
-						}}>Searching</GradientButton>
-					</CardContent>
-				</Card>
+					</Stack>
+				</Box>
 			</GradientBackground>
 		</ThemeProvider>
 	)

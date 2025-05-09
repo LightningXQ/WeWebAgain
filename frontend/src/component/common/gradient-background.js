@@ -6,11 +6,12 @@ const GradientBackground = styled(Box)(({ cover }) => ({
 	flexDirection: "column",
 	alignItems: "center",
 	justifyContent: "center",
+  minWidth: '100vw',
   minHeight: '100vh',
   backgroundImage: `
     linear-gradient(
       to bottom,
-      rgba(237,237,237,1.0) 40%,
+      rgba(237,237,237,1.0) 0%,
       rgba(237,237,237,0.0) 90%
     ),
     url(${cover})

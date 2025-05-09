@@ -44,6 +44,10 @@ const Login = () => {
 	const [password, setPassword] = useState('');
 	const [keepLogin, setKeepLogin] = useState(true);
 
+	// const clipPath = (width=100, height=100, bezier=29) => {
+	// 	return `path('M0,${bezier} Q0,0 ${bezier},0 H${width-bezier} Q${width},0 ${width},${bezier} V${height-bezier} Q${width},${height} ${width-bezier},${height} H${bezier} Q0,${height} 0,${height-bezier} Z')`
+	// }
+
 	const handleLogin = async () => {
 		try {
 			const response = await axios.post('http://localhost:4000/login', {
@@ -52,7 +56,6 @@ const Login = () => {
 				keepLogin,
 			});
 			console.log(response.data);
-			console.log(userId, password, keepLogin);
 			return;
 		} catch (error) {
 			console.error(error);
@@ -66,14 +69,15 @@ const Login = () => {
 			<GradientBackground cover={cover}>
 				{/* 상단 네비게이션 바 */}
 				<CustomAppBar logo={logo} />
-
 				{/* 배경과 로그인 카드 */}
-				<Card sx={{ 
+				<Card sx={ theme => ({ 
 					width: 550, 
 					height: 700, 
 					borderRadius: 8, 
 					boxShadow: 20, 
-				}}>
+					transform: "translate(0, 5%)",
+					// clipPath: clipPath(550, 700, 35),
+				})}>
 					<CardContent sx={{ 
 						height: "100%", 
 						padding: 10, 
@@ -144,6 +148,7 @@ const Login = () => {
 						</Stack>
 					</CardContent>
 				</Card>
+
 			</GradientBackground>
 		</ThemeProvider>
 	)
