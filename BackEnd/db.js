@@ -8,12 +8,12 @@ const db = mysql.createConnection({
   database: 'webagain'
 });
 
-db.connect(err => {
-  if (err) {
-    console.error('❌ DB 연결 실패:', err);
-  } else {
-    console.log('✅ DB 연결 성공');
-  }
-});
+// db.connect(err => {
+//   if (err) {
+//     console.error('❌ DB 연결 실패:', err);
+//   } else {
+//     console.log('✅ DB 연결 성공');
+//   }
+// });
 
 module.exports = db;
