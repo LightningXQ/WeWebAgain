@@ -1,58 +1,60 @@
-// ✅ /router/authRouter.js (id를 userId로 사용 + 비밀번호 유효성 검사 + 중복 ID 체크 + 이메일 저장 추가)
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const authRepo = require('../repositories/authRepo');
 const bcrypt = require('bcrypt');
 
 // 🔹 회원가입
 router.post('/signup', async (req, res) => {
   const { userId, username, password, email } = req.body;
 
-  // 비밀번호 유효성 검사 (영문+숫자 8자 이상)
+  // 비밀번호 유효성 검사
   const isValidPassword = /^[A-Za-z0-9]{8,}$/.test(password);
   if (!isValidPassword) {
     return res.status(400).send('비밀번호는 영문+숫자 조합 8자 이상이어야 합니다.');
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const now = new Date().toISOString();
-
-  const sql = 'INSERT INTO user (id, username, email, password, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)';
-  const values = [userId, username, email, hashedPassword, now, now];
-
-  db.query(sql, values, (err) => {
-    if (err) {
-      if (err.code === 'ER_DUP_ENTRY') {
-        return res.status(400).send('이미 존재하는 아이디입니다.');
-      }
-      console.error('회원가입 실패:', err);
-      return res.status(500).send('회원가입 오류');
+  try {
+    const existingUser = await authRepo.getUserById(userId);
+    if (existingUser.length > 0) {
+      return res.status(400).send('이미 존재하는 아이디입니다.');
     }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const now = new Date().toISOString();
+
+    await authRepo.signup(userId, hashedPassword, username, email, now);
+
     res.send('회원가입 성공');
-  });
+  } catch (err) {
+    console.error('회원가입 오류:', err);
+    res.status(500).send('회원가입 실패');
+  }
 });
 
-// 🔹 로그인 (id를 userId로 조회)
-router.post('/login', (req, res) => {
+// 🔹 로그인
+router.post('/login', async (req, res) => {
   const { userId, password } = req.body;
 
-  db.query('SELECT * FROM user WHERE id = ?', [userId], async (err, results) => {
-    if (err || results.length === 0) {
+  try {
+    const users = await authRepo.getUserById(userId);
+    if (users.length === 0) {
       return res.status(401).send('아이디 또는 비밀번호 오류');
     }
 
-    const match = await bcrypt.compare(password, results[0].password);
+    const match = await bcrypt.compare(password, users[0].password);
     if (!match) return res.status(401).send('아이디 또는 비밀번호 오류');
 
-    // 세션 저장
     req.session.user = {
-      id: results[0].id,
-      username: results[0].username,
-      email: results[0].email
+      id: users[0].id,
+      username: users[0].username,
+      email: users[0].email
     };
 
     res.send('로그인 성공');
-  });
+  } catch (err) {
+    console.error('로그인 오류:', err);
+    res.status(500).send('로그인 실패');
+  }
 });
 
 // 🔹 로그인 상태 확인
@@ -71,4 +73,3 @@ router.post('/logout', (req, res) => {
 });
 
 module.exports = router;
-  

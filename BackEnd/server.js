@@ -11,7 +11,7 @@ const authRouter = require('./router/authRouter.js');
 
 // ✅ CORS 설정 (프론트엔드와 세션 공유 위해 필요)
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: 'http://localhost:4000',
   credentials: true
 }));
 
@@ -41,15 +41,6 @@ app.get('/', (req, res) => {
   res.send('백엔드 서버 실행 중');
 });
 
-app.get('/users', (req, res) => {
-  db.query('SELECT * FROM user', (err, results) => {
-    if (err) {
-      res.status(500).send('DB 조회 오류');
-    } else {
-      res.json(results);
-    }
-  });
-});
 
 // ✅ 서버 실행
 app.listen(port, () => {
