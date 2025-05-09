@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const authRepo = require('../repositories/authRepo');
+const authRepo = require('../repository/authRepo');
 const bcrypt = require('bcrypt');
 
 // 🔹 회원가입
