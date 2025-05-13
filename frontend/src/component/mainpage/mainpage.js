@@ -1,5 +1,5 @@
 // React
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 // axios
 // eslint-disable-next-line
@@ -63,22 +63,34 @@ const theme = createTheme({
 const Mainpage = () => {
 	const [mode, setMode] = useState(false);
 
-	const handleSearch = async () => {
-		try {
-			setMode(!mode);
-			return;
-		} catch (error) {
-			console.error(error);
-			return;
-		}
-	}
+	useEffect(() => {
+		const getUserInfo = async () => {
+			try {
+				const response = await axios.get('http://localhost:4000/auth/check', 
+				{
+					withCredentials: true,
+					headers: {
+						'Content-Type': 'application/json'
+					}
+				});
+				console.log(response.data);
+				setMode(response.data.loggedIn);
+				return;
+			} catch (error) {
+				console.error(error);
+				return;
+			}
+		};
+
+		getUserInfo();
+	}, []);
 	
 	return (
 		<ThemeProvider theme={theme}>
 			{/* 전체 화면 배경 */}
 			<GradientBackground cover={cover}>
 				{/* 상단 네비게이션 바 */}
-				<CustomAppBar logo={logo} />
+				<CustomAppBar isLogin={mode} />
 				<Box sx={{
 					flex: 1,
 
@@ -130,7 +142,7 @@ const Mainpage = () => {
 							borderRadius: 8,
 							border: "1.5px solid #3644C9"
 						}}>
-							<NaverMap />
+							{/* <NaverMap /> */}
 						</Card>
 						<Stack direction="column" spacing={4} sx={{
 							'& > *': {  // Stack의 모든 직계 자식 요소에 적용

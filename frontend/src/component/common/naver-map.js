@@ -56,10 +56,14 @@ function NaverMap({
     if (typeof naver === 'undefined') {
       loadScript(
         'https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=726xm0gokn',
-        initMap,
+        () => {
+          // DOM이 준비된 후 지도 초기화
+          setTimeout(initMap, 100);
+        }
       );
     } else {
-      initMap();
+      // DOM이 준비된 후 지도 초기화
+      setTimeout(initMap, 100);
     }
   }, [latitude, longitude]);
 
@@ -71,7 +75,7 @@ function NaverMap({
           위치 안내
         </span>
         {isMapLoaded && (
-          <div id="map" style={{height: "200px"}}/>
+          <div id="map" style={{width: "100%", height: "400px"}}/>
         )}
       </div>
     </>
