@@ -8,13 +8,13 @@ router.get('/idcheck/:id',async (req, res)=>{
     const userInfo = await authRepo.getUserById(id);
     try {
         if(userInfo.id){
-            return res.send(false).json({message:'중복ID'})
+            return res.json({check:false})
         }
         else{
-            res.send(true)
+            res.json({check:true})
         }   
     }   catch (error) {
-        res.send(true)
+            res.json({check:true})
     }
     
 })
