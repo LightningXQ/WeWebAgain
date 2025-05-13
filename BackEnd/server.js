@@ -11,7 +11,7 @@ const authRouter = require('./router/authRouter.js');
 
 // ✅ CORS 설정 (프론트엔드와 세션 공유 위해 필요)
 app.use(cors({
-  origin: 'http://localhost:4000',
+  origin: 'http://localhost:3000',
   credentials: true
 }));
 
