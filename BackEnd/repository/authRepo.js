@@ -28,8 +28,8 @@ module.exports = {
           return reject(err);
         }
 
-        console.log('DB 조회 결과:', results);
-        resolve(results);
+        // console.log('DB 조회 결과:', results);
+        resolve(results[0]);
       });
     });
   }

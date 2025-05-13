@@ -6,6 +6,7 @@ router.get('/idcheck/:id',async (req, res)=>{
     const id = req.params.id;
 
     const userInfo = await authRepo.getUserById(id);
+
     if(userInfo.id){
         return res.send('중복 ID')
     }
