@@ -13,8 +13,8 @@ router.get('/idcheck/:id',async (req, res)=>{
         else{
             res.send(`${id} 사용가능`)
         }
-    } catch (error) {
-        res.send('사용불가능 Id')
+    }   catch (error) {
+        res.send(`${id} 사용가능`)
     }
     
 })
