@@ -127,7 +127,7 @@ const Mainpage = () => {
 						margin: 4,
 					}}>
 						<Card sx={{
-							borderRadius: 10,
+							borderRadius: 8,
 							border: "1.5px solid #3644C9"
 						}}>
 							<NaverMap />

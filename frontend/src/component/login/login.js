@@ -50,10 +50,16 @@ const Login = () => {
 
 	const handleLogin = async () => {
 		try {
-			const response = await axios.post('http://localhost:4000/login', {
+			const response = await axios.post('http://localhost:4000/auth/login', {
 				userId,
 				password,
-				keepLogin,
+				// keepLogin,
+			},
+			{
+				withCredentials: true,
+				headers: {
+					'Content-Type': 'application/json'
+				}
 			});
 			console.log(response.data);
 			return;
@@ -129,7 +135,7 @@ const Login = () => {
 							width: "80%",
 							height: 56,
 						}}>
-							Log In
+							로그인
 						</GradientButton>
 
 						<Divider sx={{ 

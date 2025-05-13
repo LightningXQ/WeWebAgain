@@ -65,7 +65,7 @@ const SignupComplete = () => {
 							marginTop: "60px",
 							width: "80%",
 							height: 56,
-						}}>Back to Login</GradientButton>
+						}}>로그인 페이지로 돌아가기</GradientButton>
 					</CardContent>
 				</Card>
 			</GradientBackground>

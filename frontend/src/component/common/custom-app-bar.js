@@ -9,6 +9,7 @@ import {
 	Button 
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import HomeIcon from '@mui/icons-material/Home';
 
 const AppBarButton = (props) => (
   <Button
@@ -51,6 +52,7 @@ const CustomAppBar = ({ logo }) => {
           justifyContent: "center",
           alignItems: "center",
           zIndex: 0,
+          pointerEvents: 'none',
         }}>
           <Typography variant="h4" fontWeight="bold" sx={{
             pointerEvents: 'auto',
@@ -66,12 +68,12 @@ const CustomAppBar = ({ logo }) => {
         </Box>
 
         <Stack direction="row" spacing={3} sx={{ zIndex: 1 }}>
-          <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/')}>Home</AppBarButton>
-          <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/signup')}>Sign Up</AppBarButton>
+          <IconButton size="large" onClick={() => navigate('/')}>
+            <HomeIcon color="primary" size="large"></HomeIcon>
+          </IconButton>
+          <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/signup')}>회원가입</AppBarButton>
           {/* <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/test')}>test</AppBarButton> */}
-          <AppBarButton variant="contained" size="large" sx={{ backgroundColor: "#3644C9", px: 4 }} onClick={() => navigate('/login')}>
-            Log In
-          </AppBarButton>
+          <AppBarButton variant="contained" size="large" sx={{ backgroundColor: "#3644C9", px: 4 }} onClick={() => navigate('/login')}>로그인</AppBarButton>
         </Stack>
       </Toolbar>
     </AppBar>

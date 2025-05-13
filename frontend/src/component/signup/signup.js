@@ -1,5 +1,5 @@
 // React
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 // axios
@@ -45,10 +45,13 @@ const Signup = () => {
 	const [idError, setIdError] = useState(null);
 	const [nickname, setNickname] = useState('');
 	const [password, setPassword] = useState('');
+	const [passwordCheck, setPasswordCheck] = useState('');
 	const [passwordError, setPasswordError] = useState(null);
+	const [passwordCheckError, setPasswordCheckError] = useState(null);
 	const [emailAddress, setEmailAddress] = useState("");
   const [emailDomain, setEmailDomain] = useState("");
 	const [open, setOpen] = useState(false);
+	const [isFirstRender, setIsFirstRender] = useState(true);
 	
 	const [selected, setSelected] = useState('버스');
 
@@ -68,12 +71,28 @@ const Signup = () => {
 		}
 	}
 
-	const verifyPassword = (pw) => {
-		const regexp = new RegExp("^[A-Za-z0-9]{8,}$");
-		if (regexp.test(pw)) setPasswordError(false);
-		else setPasswordError(true);
-		return;
-	}
+	useEffect(() => {
+		const verifyPassword = (pw) => {
+			const regexp = new RegExp("^[A-Za-z0-9]{8,}$");
+			if (regexp.test(pw)) setPasswordError(false);
+			else setPasswordError(true);
+			return;
+		}
+	
+		const verifyPasswordCheck = (pwc) => {
+			if (pwc === password) setPasswordCheckError(false);
+			else setPasswordCheckError(true);
+			return;
+		}
+
+		if (isFirstRender) {
+			setIsFirstRender(false);
+			return;
+		} else {
+			verifyPassword(password);
+			verifyPasswordCheck(passwordCheck);
+		}
+	}, [password, passwordCheck]);
 
 	const handleSignup = async () => {
 		try {
@@ -144,7 +163,6 @@ const Signup = () => {
 					<CardContent sx={{ 
 						height: "100%", 
 						padding: 10, 
-						paddingTop: 6,
 						boxSizing: 'border-box', 
 					}}>
 						<Box>
@@ -152,8 +170,8 @@ const Signup = () => {
 						</Box>
 						<Box>
 							{/* ID */}
-							<Typography fontWeight="bold" mb={.25}>ID</Typography>
-							<Box display="flex" mb={4}>
+							<Typography fontWeight="bold" mb={.25}>아이디</Typography>
+							<Box display="flex" mb={1}>
 								<TextField
 									variant="standard" 
 									fullWidth
@@ -166,7 +184,7 @@ const Signup = () => {
 									error={idError}
 									helperText={
 										idError === null
-											? ""
+											? " "
 											: idError === true
 												? "사용할 수 없는 아이디입니다."
 												: "사용 가능한 아이디입니다."
@@ -192,18 +210,19 @@ const Signup = () => {
 							</Box>
 
 							{/* Nickname */}
-							<Typography fontWeight="bold" mb={.25}>NICKNAME</Typography>
+							<Typography fontWeight="bold" mb={.25}>닉네임</Typography>
 							<TextField 
 								variant="standard" 
 								fullWidth 
 								placeholder="사용할 닉네임을 입력하세요." 
 								value={nickname}
 								onChange={event => setNickname(event.target.value)}
-								sx={{	mb: 4 }} 
+								sx={{	mb: 1 }} 
+								helperText=" "
 							/>
 
 							{/* Password */}
-							<Typography fontWeight="bold" mb={.25}>PASSWORD</Typography>
+							<Typography fontWeight="bold" mb={.25}>비밀번호</Typography>
 							<TextField
 								variant="standard" 
 								fullWidth 
@@ -212,13 +231,12 @@ const Signup = () => {
 								value={password}
 								onChange={event => {
 									setPassword(event.target.value);
-									verifyPassword(event.target.value);
 								}}
 								error={passwordError}
-								sx={{ mb: 4 }} 
+								sx={{ mb: 1 }} 
 								helperText={
 									passwordError === null
-										? ""
+										? " "
 										: passwordError === true
 											? "조건에 맞지 않는 비밀번호입니다."
 											: "조건에 맞는 비밀번호입니다."
@@ -230,36 +248,35 @@ const Signup = () => {
 								}}
 							/>
 
-							{/* Password */}
-							<Typography fontWeight="bold" mb={.25}>PASSWORD</Typography>
+							{/* Password Check */}
+							<Typography fontWeight="bold" mb={.25}>비밀번호 확인</Typography>
 							<TextField
 								variant="standard" 
 								fullWidth 
-								placeholder="비밀번호를 입력하세요. (영문, 숫자 포함 8자리 이상)"
+								placeholder="비밀번호를 다시 입력하세요."
 								type="password"
-								value={password}
+								value={passwordCheck}
 								onChange={event => {
-									setPassword(event.target.value);
-									verifyPassword(event.target.value);
+									setPasswordCheck(event.target.value);
 								}}
-								error={passwordError}
-								sx={{ mb: 4 }} 
+								error={passwordCheckError}
+								sx={{ mb: 1 }} 
 								helperText={
-									passwordError === null
-										? ""
-										: passwordError === true
-											? "조건에 맞지 않는 비밀번호입니다."
-											: "조건에 맞는 비밀번호입니다."
+									passwordCheckError === null
+										? " "
+										: passwordCheckError === true
+											? "비밀번호가 일치하지 않습니다."
+											: "비밀번호가 일치합니다."
 								}
 								slotProps={{
 									formHelperText: { sx: {
-										color: passwordError === false ? 'green' : undefined
+										color: passwordCheckError === false ? 'green' : undefined
 									} }
 								}}
 							/>
 
 							{/* Email */}
-							<Typography fontWeight="bold" mb={.25}>E-MAIL</Typography>
+							<Typography fontWeight="bold" mb={.25}>이메일</Typography>
 							<Box display="flex" alignItems="center" mb={6}>
 								<TextField
 									variant="standard"
@@ -296,7 +313,7 @@ const Signup = () => {
 								width: "80%",
 								height: 56,
 							}}>
-								Sign Up
+								회원가입
 							</GradientButton>
 
 						</Box>
@@ -377,7 +394,7 @@ const Signup = () => {
 						marginRight: "auto",
 						width: "60%",
 						height: 56,
-					}}>Submit</GradientButton>
+					}}>완료</GradientButton>
 				</DialogActions>
 			</Dialog>
 		</ThemeProvider>
