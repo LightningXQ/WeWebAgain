@@ -40,7 +40,7 @@ router.post('/login', async (req, res) => {
     if (users.length === 0) {
       return res.status(401).send('아이디 또는 비밀번호 오류');
     }
-
+    console.log(users[0].id)
     const match = await bcrypt.compare(password, users[0].password);
     if (!match) return res.status(401).send('아이디 또는 비밀번호 오류');
 
@@ -60,7 +60,7 @@ router.post('/login', async (req, res) => {
 // 🔹 로그인 상태 확인
 router.get('/check', (req, res) => {
   if (req.session.user) {
-    res.json({ loggedIn: true, user: req.session.user });
+    res.json({ loggedIn: true, user: req.session.user});
   } else {
     res.json({ loggedIn: false });
   }
@@ -71,5 +71,5 @@ router.post('/logout', (req, res) => {
   req.session.destroy();
   res.send('로그아웃 완료');
 });
-
+  
 module.exports = router;

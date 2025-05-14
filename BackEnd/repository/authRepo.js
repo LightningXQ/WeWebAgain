@@ -29,7 +29,7 @@ module.exports = {
         }
 
         // console.log('DB 조회 결과:', results);
-        resolve(results[0]);
+        resolve(results);
       });
     });
   }
