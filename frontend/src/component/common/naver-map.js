@@ -1,9 +1,15 @@
 /* global naver */
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 let mapInstance = null;
 
+// 외부 스크립트 로드 함수
 const loadScript = (src, callback) => {
+  const existingScript = document.querySelector(`script[src="${src}"]`);
+  if (existingScript) {
+    existingScript.remove(); // 기존 스크립트 제거 (이전 키 방지)
+  }
+
   const script = document.createElement('script');
   script.type = 'text/javascript';
   script.src = src;
@@ -11,70 +17,92 @@ const loadScript = (src, callback) => {
   document.head.appendChild(script);
 };
 
-function NaverMap({
-  latitude = 0,
-  longitude = 0,
-}) {
-  // 지도 로딩 상태
+function NaverMap() {
   const [isMapLoaded, setMapLoaded] = useState(false);
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
 
+  // 지도 초기화 함수
   const initMap = () => {
-    // 추가 옵션 설정
+    if (latitude === null || longitude === null) return;
+
     const mapOptions = {
+      center: new naver.maps.LatLng(latitude, longitude),
+      zoom: 16,
       zoomControl: true,
       zoomControlOptions: {
         style: naver.maps.ZoomControlStyle.SMALL,
         position: naver.maps.Position.TOP_RIGHT,
       },
-      center: new naver.maps.LatLng(latitude, longitude),
-      zoom: 16,
     };
 
-    // 지도 초기화 확인
-    if (document.getElementById('map')) {
-      mapInstance = new naver.maps.Map('map', mapOptions);
+    const mapContainer = document.getElementById('map');
+
+    if (!mapContainer) {
+      setTimeout(initMap, 100);
+      return;
     }
 
-    // Marker 생성
+    mapInstance = new naver.maps.Map(mapContainer, mapOptions);
+
     const marker = new naver.maps.Marker({
       position: new naver.maps.LatLng(latitude, longitude),
       map: mapInstance,
     });
 
-    // Marker 클릭 시 지도 초기화
     naver.maps.Event.addListener(marker, 'click', () => {
       mapInstance?.setCenter(new naver.maps.LatLng(latitude, longitude));
       mapInstance?.setZoom(16);
     });
 
-    // 지도 로드 완료
     setMapLoaded(true);
   };
 
+  // 위치 정보 가져오기
   useEffect(() => {
-    // 스크립트 로딩 확인
-    if (typeof naver === 'undefined') {
-      loadScript(
-        'https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=726xm0gokn',
-        initMap,
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLatitude(position.coords.latitude);
+          setLongitude(position.coords.longitude);
+        },
+        (error) => {
+          console.error("위치 정보를 가져오는 데 실패했습니다.", error);
+          // fallback 좌표
+          setLatitude(37.3595704);
+          setLongitude(127.105399);
+        }
       );
     } else {
-      initMap();
+      console.warn("Geolocation을 지원하지 않는 브라우저입니다.");
+      setLatitude(37.3595704);
+      setLongitude(127.105399);
+    }
+  }, []);
+
+  // 스크립트 로드 및 지도 초기화
+  useEffect(() => {
+    if (latitude !== null && longitude !== null) {
+      if (typeof naver === 'undefined') {
+        loadScript(
+          'https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=xxjxzgrbgq',
+          initMap
+        );
+      } else {
+        initMap();
+      }
     }
   }, [latitude, longitude]);
 
   return (
-    <>
-      {/* 위치 정보(지도) */}
-      <div className="mb-8 mt-40 flex w-screen flex-col items-center">
-        <span className="sm:text-md font-Pretendard text-sm font-bold text-[#06439F] md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl">
-          위치 안내
-        </span>
-        {isMapLoaded && (
-          <div id="map" style={{height: "200px"}}/>
-        )}
+    <div className="mb-8 mt-40 flex w-screen flex-col items-center">
+      <span className="sm:text-md font-Pretendard text-sm font-bold text-[#06439F] md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl">
+        위치 안내
+      </span>
+      <div id="map" style={{ width: "100%", height: "562px" }}>
+        {!isMapLoaded && <p>지도를 불러오는 중입니다...</p>}
       </div>
-    </>
+    </div>
   );
 }
 

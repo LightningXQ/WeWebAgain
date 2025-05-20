@@ -3,30 +3,28 @@ import React, { useState } from 'react';
 
 // axios
 // eslint-disable-next-line
-import axios from "axios";
 
 // Material-UI
 import {
-  Typography,
-  TextField,
-  Card,
-  CardContent,
-  Box,
-  Stack,
+	Box,
+	Card,
+	Stack,
+	TextField,
+	Typography
 } from '@mui/material';
-import { 
-	createTheme, 
-	ThemeProvider, 
+import {
+	createTheme,
+	ThemeProvider,
 } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 import { DesktopDatePicker } from '@mui/x-date-pickers/DesktopDatePicker';
+import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 
 // Modules
+import CustomAppBar from '../common/custom-app-bar';
 import GradientBackground from '../common/gradient-background';
 import GradientButton from '../common/gradient-button';
-import CustomAppBar from '../common/custom-app-bar';
 import NaverMap from '../common/naver-map';
 
 // Declaration
@@ -62,9 +60,18 @@ const theme = createTheme({
 
 const Mainpage = () => {
 	const [mode, setMode] = useState(false);
+	const [startLocation, setStartLocation] = useState("");
+	const [endLocation, setEndLocation] = useState("");
+	const [arrivalTime, setArrivalTime] = useState(null);
+	const [arrivalDate, setArrivalDate] = useState(null);
 
 	const handleSearch = async () => {
 		try {
+			console.log("출발지:", startLocation);
+			console.log("도착지:", endLocation);
+			console.log("도착 날짜:", arrivalDate?.format("YYYY-MM-DD"));
+			console.log("도착 시간:", arrivalTime?.format("HH:mm"));
+
 			setMode(!mode);
 			return;
 		} catch (error) {
@@ -98,10 +105,10 @@ const Mainpage = () => {
 							}}>
 								위치 설정
 							</Typography>
-							<TextField fullWidth placeholder="출발지를 입력하세요." sx={{
+							<TextField fullWidth placeholder="출발지를 입력하세요." value={startLocation} onChange={(e) => setStartLocation(e.target.value)} sx={{
 								marginBottom: 2,
 							}} />
-							<TextField fullWidth placeholder="도착지를 입력하세요." sx={{
+							<TextField fullWidth placeholder="도착지를 입력하세요." value={endLocation} onChange={(e) => setEndLocation(e.target.value)} sx={{
 								marginBottom: 6,
 							}} />
 							<Typography fontSize={24} mb={2} fontWeight="bold" sx={{
@@ -112,10 +119,20 @@ const Mainpage = () => {
 								<Stack direction="row" spacing={2} sx={{
 									justifyContent: "space-evenly",
 								}}>
-									<DesktopDatePicker label="날짜 선택" sx={{ width: 200, }}/>
-									<DesktopTimePicker label="시간 선택" sx={{ width: 200, }}/>
+									<DesktopDatePicker label="날짜 선택" value={arrivalDate} onChange={(newValue) => setArrivalDate(newValue)} sx={{ width: 200, }}/>
+									<DesktopTimePicker label="시간 선택" value={arrivalTime} onChange={(newValue) => setArrivalTime(newValue)} sx={{ width: 200, }}/>
 								</Stack>
 							</LocalizationProvider>
+							<GradientButton variant="contained" onClick={handleSearch} sx={{
+								marginTop: 4,
+								borderRadius: 8,
+								paddingX: 4,
+								paddingY: 1.5,
+								width: "100%"
+							}}
+							>
+								설정 완료
+							</GradientButton>
 						</Box>
 					</Box>
 					<Stack direction="row" spacing={4} sx={{
