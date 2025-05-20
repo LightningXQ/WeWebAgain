@@ -11,6 +11,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import HomeIcon from '@mui/icons-material/Home';
 
+const logo = "/images/logo.png";
+
 const AppBarButton = (props) => (
   <Button
 		{...props}
@@ -26,7 +28,7 @@ const AppBarButton = (props) => (
   </Button>
 );
 
-const CustomAppBar = ({ logo }) => {
+const CustomAppBar = ({ isLogin }) => {
   const navigate = useNavigate();
 
   return (
@@ -73,7 +75,11 @@ const CustomAppBar = ({ logo }) => {
           </IconButton>
           <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/signup')}>회원가입</AppBarButton>
           {/* <AppBarButton color="inherit" variant="text" size="large" onClick={() => navigate('/test')}>test</AppBarButton> */}
-          <AppBarButton variant="contained" size="large" sx={{ backgroundColor: "#3644C9", px: 4 }} onClick={() => navigate('/login')}>로그인</AppBarButton>
+          {isLogin ?
+            <AppBarButton variant="contained" size="large" sx={{ backgroundColor: "#3644C9", px: 4 }} onClick={() => navigate('/login')}>로그아웃</AppBarButton>
+            :
+            <AppBarButton variant="contained" size="large" sx={{ backgroundColor: "#3644C9", px: 4 }} onClick={() => navigate('/login')}>로그인</AppBarButton>
+          }
         </Stack>
       </Toolbar>
     </AppBar>

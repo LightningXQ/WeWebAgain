@@ -34,7 +34,7 @@ const SignupComplete = () => {
 			{/* 전체 화면 배경 */}
 			<GradientBackground cover={cover}>
 				{/* 상단 네비게이션 바 */}
-				<CustomAppBar logo={logo} />
+				<CustomAppBar />
 				<Card sx={{ 
 					width: 550, 
 					height: 700, 

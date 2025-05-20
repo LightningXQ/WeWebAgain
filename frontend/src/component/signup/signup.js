@@ -59,11 +59,14 @@ const Signup = () => {
 
 	const verifyUserId = async () => {
 		try {
-			// const response = await axios.post('http://localhost:4000/login', {
-			// 	userId, 
-			// });
-			// console.log(response.data);
-			if (userId.length >= 2) setIdError(false);
+			const response = await axios.get(`http://localhost:4000/api/idcheck/${userId}`,
+			{
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			});
+			console.log(response.data.check);
+			if (response.data.check) setIdError(false);
 			else setIdError(true);
 			return;
 		} catch (error) {
@@ -124,18 +127,21 @@ const Signup = () => {
 		}
 	}
 
-	const submitSignup = () => {
+	const submitSignup = async () => {
 		try {
-			// const response = await axios.post('http://localhost:4000/login', {
-			// 	userId,
-			// 	nickname,
-			// 	password,
-			// 	emailAddress,
-			// 	emailDomain,
-			// 	selected, 
-			// });
-			// console.log(response.data);
-			console.log(userId, nickname, password, `${emailAddress}@${emailDomain}`, selected);
+			const emailConcatenated = `${emailAddress}@${emailDomain}`;
+			const response = await axios.post('http://localhost:4000/auth/signup', {
+				userId: userId,
+				username: nickname,
+				password: password,
+				email: emailConcatenated,
+			},
+			{
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			});
+			console.log(response.data);
 			setOpen(false);
 			navigate('/signup/complete');
 			return;
@@ -150,7 +156,7 @@ const Signup = () => {
 			{/* 전체 화면 배경 */}
 			<GradientBackground cover={cover}>
 				{/* 상단 네비게이션 바 */}
-				<CustomAppBar logo={logo} />
+				<CustomAppBar />
 
 				{/* 배경과 로그인 카드 */}
 				<Card sx={{ 

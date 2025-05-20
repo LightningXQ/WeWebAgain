@@ -1,5 +1,5 @@
 // React
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // axios
 // eslint-disable-next-line
@@ -25,7 +25,6 @@ import { DesktopTimePicker } from '@mui/x-date-pickers/DesktopTimePicker';
 import CustomAppBar from '../common/custom-app-bar';
 import GradientBackground from '../common/gradient-background';
 import GradientButton from '../common/gradient-button';
-import NaverMap from '../common/naver-map';
 
 // Declaration
 const logo = "/images/logo.png";
@@ -65,27 +64,34 @@ const Mainpage = () => {
 	const [arrivalTime, setArrivalTime] = useState(null);
 	const [arrivalDate, setArrivalDate] = useState(null);
 
-	const handleSearch = async () => {
-		try {
-			console.log("출발지:", startLocation);
-			console.log("도착지:", endLocation);
-			console.log("도착 날짜:", arrivalDate?.format("YYYY-MM-DD"));
-			console.log("도착 시간:", arrivalTime?.format("HH:mm"));
+	useEffect(() => {
+		const getUserInfo = async () => {
+			try {
+				const response = await axios.get('http://localhost:4000/auth/check', 
+				{
+					withCredentials: true,
+					headers: {
+						'Content-Type': 'application/json'
+					}
+				});
+				console.log(response.data);
+				setMode(response.data.loggedIn);
+				return;
+			} catch (error) {
+				console.error(error);
+				return;
+			}
+		};
 
-			setMode(!mode);
-			return;
-		} catch (error) {
-			console.error(error);
-			return;
-		}
-	}
+		getUserInfo();
+	}, []);
 	
 	return (
 		<ThemeProvider theme={theme}>
 			{/* 전체 화면 배경 */}
 			<GradientBackground cover={cover}>
 				{/* 상단 네비게이션 바 */}
-				<CustomAppBar logo={logo} />
+				<CustomAppBar isLogin={mode} />
 				<Box sx={{
 					flex: 1,
 
@@ -147,7 +153,7 @@ const Mainpage = () => {
 							borderRadius: 8,
 							border: "1.5px solid #3644C9"
 						}}>
-							<NaverMap />
+							{/* <NaverMap /> */}
 						</Card>
 						<Stack direction="column" spacing={4} sx={{
 							'& > *': {  // Stack의 모든 직계 자식 요소에 적용

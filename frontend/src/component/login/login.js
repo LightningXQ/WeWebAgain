@@ -1,5 +1,6 @@
 // React
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // axios
 // eslint-disable-next-line
@@ -40,6 +41,8 @@ const kakaotalk = "/images/logo_kakaotalk.png";
 const theme = createTheme({});
 
 const Login = () => {
+	const navigate = useNavigate();
+	
 	const [userId, setUserId] = useState('');
 	const [password, setPassword] = useState('');
 	const [keepLogin, setKeepLogin] = useState(true);
@@ -51,10 +54,10 @@ const Login = () => {
 	const handleLogin = async () => {
 		try {
 			const response = await axios.post('http://localhost:4000/auth/login', {
-				userId,
-				password,
+				userId: userId,
+				password: password,
 				// keepLogin,
-			},
+			}, 
 			{
 				withCredentials: true,
 				headers: {
@@ -62,6 +65,7 @@ const Login = () => {
 				}
 			});
 			console.log(response.data);
+			navigate("/")
 			return;
 		} catch (error) {
 			console.error(error);
@@ -74,7 +78,7 @@ const Login = () => {
 			{/* 전체 화면 배경 */}
 			<GradientBackground cover={cover}>
 				{/* 상단 네비게이션 바 */}
-				<CustomAppBar logo={logo} />
+				<CustomAppBar />
 				{/* 배경과 로그인 카드 */}
 				<Card sx={ theme => ({ 
 					width: 550, 
