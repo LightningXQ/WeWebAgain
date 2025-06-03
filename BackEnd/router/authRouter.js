@@ -24,7 +24,7 @@ router.post('/signup', async (req, res) => {
 
     await authRepo.signup(userId, hashedPassword, username, email, now);
 
-    res.send('회원가입 성공');
+    res.status(200).send('회원가입 성공');
   } catch (err) {
     console.error('회원가입 오류:', err);
     res.status(500).send('회원가입 실패');
@@ -50,7 +50,7 @@ router.post('/login', async (req, res) => {
       email: users[0].email
     };
 
-    res.send('로그인 성공');
+    res.status(200).send('로그인 성공');
   } catch (err) {
     console.error('로그인 오류:', err);
     res.status(500).send('로그인 실패');
