@@ -1,5 +1,16 @@
 /* global naver */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+
+// Material-UI
+import {
+	Box,
+	Card,
+	Stack,
+	TextField,
+	Typography
+} from '@mui/material';
+
+import axios from "axios";
 
 let mapInstance = null;
 
@@ -21,6 +32,7 @@ function NaverMap() {
   const [isMapLoaded, setMapLoaded] = useState(false);
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
+  const mapRef = useRef(null);
 
   // 지도 초기화 함수
   const initMap = () => {
@@ -36,14 +48,12 @@ function NaverMap() {
       },
     };
 
-    const mapContainer = document.getElementById('map');
-
-    if (!mapContainer) {
+    if (!mapRef.current) {
       setTimeout(initMap, 100);
       return;
     }
 
-    mapInstance = new naver.maps.Map(mapContainer, mapOptions);
+    mapInstance = new naver.maps.Map(mapRef.current, mapOptions);
 
     const marker = new naver.maps.Marker({
       position: new naver.maps.LatLng(latitude, longitude),
@@ -95,14 +105,11 @@ function NaverMap() {
   }, [latitude, longitude]);
 
   return (
-    <div className="mb-8 mt-40 flex w-screen flex-col items-center">
-      <span className="sm:text-md font-Pretendard text-sm font-bold text-[#06439F] md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl">
-        위치 안내
-      </span>
-      <div id="map" style={{ width: "100%", height: "562px" }}>
+    <Box style={{ height: "100%" }}>
+      <div ref={mapRef} style={{ height: "100%" }}>
         {!isMapLoaded && <p>지도를 불러오는 중입니다...</p>}
       </div>
-    </div>
+    </Box>
   );
 }
 
