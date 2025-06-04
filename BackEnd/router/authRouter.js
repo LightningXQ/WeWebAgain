@@ -67,7 +67,7 @@ router.get('/check', (req, res) => {
 });
 
 // 🔹 로그아웃
-router.post('/logout', (req, res) => {
+router.get('/logout', (req, res) => {
   req.session.destroy();
   res.send('로그아웃 완료');
 });
