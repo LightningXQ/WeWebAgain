@@ -1,5 +1,11 @@
 /* global naver */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+// Material-UI
+import {
+  Box
+} from '@mui/material';
+
 
 let mapInstance = null;
 
@@ -21,6 +27,7 @@ function NaverMap() {
   const [isMapLoaded, setMapLoaded] = useState(false);
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
+  const mapRef = useRef(null);
 
   // 지도 초기화 함수
   const initMap = () => {
@@ -36,14 +43,12 @@ function NaverMap() {
       },
     };
 
-    const mapContainer = document.getElementById('map');
-
-    if (!mapContainer) {
+    if (!mapRef.current) {
       setTimeout(initMap, 100);
       return;
     }
 
-    mapInstance = new naver.maps.Map(mapContainer, mapOptions);
+    mapInstance = new naver.maps.Map(mapRef.current, mapOptions);
 
     const marker = new naver.maps.Marker({
       position: new naver.maps.LatLng(latitude, longitude),
@@ -60,7 +65,6 @@ function NaverMap() {
 
   // 위치 정보 가져오기
   useEffect(() => {
-<<<<<<< HEAD
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -92,44 +96,15 @@ function NaverMap() {
       } else {
         initMap();
       }
-=======
-    // 스크립트 로딩 확인
-    if (typeof naver === 'undefined') {
-      loadScript(
-        'https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=726xm0gokn',
-        () => {
-          // DOM이 준비된 후 지도 초기화
-          setTimeout(initMap, 100);
-        }
-      );
-    } else {
-      // DOM이 준비된 후 지도 초기화
-      setTimeout(initMap, 100);
->>>>>>> c6ea9015dd6cc04d6272f9544ada78f5388e67f1
     }
   }, [latitude, longitude]);
 
   return (
-<<<<<<< HEAD
-    <div className="mb-8 mt-40 flex w-screen flex-col items-center">
-      <span className="sm:text-md font-Pretendard text-sm font-bold text-[#06439F] md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl">
-        위치 안내
-      </span>
-      <div id="map" style={{ width: "100%", height: "562px" }}>
+    <Box style={{ height: "100%" }}>
+      <div ref={mapRef} style={{ height: "100%" }}>
         {!isMapLoaded && <p>지도를 불러오는 중입니다...</p>}
-=======
-    <>
-      {/* 위치 정보(지도) */}
-      <div className="mb-8 mt-40 flex w-screen flex-col items-center">
-        <span className="sm:text-md font-Pretendard text-sm font-bold text-[#06439F] md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl">
-          위치 안내
-        </span>
-        {isMapLoaded && (
-          <div id="map" style={{width: "100%", height: "400px"}}/>
-        )}
->>>>>>> c6ea9015dd6cc04d6272f9544ada78f5388e67f1
       </div>
-    </div>
+    </Box>
   );
 }
 
