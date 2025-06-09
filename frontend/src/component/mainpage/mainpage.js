@@ -225,10 +225,9 @@ const Mainpage = () => {
 						}}>
 							<Card sx={{
 								borderRadius: 8,
-								display: "flex",
-								border: "1.5px solid gray",
+								border: "1.5px solid #AAAAAA",
 							}}>
-								<img src={weather} style={{ width: "543px", height: "382px"}}></img>
+								<Weather />
 							</Card>
 							<Card sx={{
 								borderRadius: 8,
