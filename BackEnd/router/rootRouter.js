@@ -34,10 +34,15 @@ router.get('/get-root', async (req, res) => {
     .map(item=>item.departureTime)
     const departureTimes2 =  schedule2.result[dayType][result[1].wayCode === 1 ? 'up' : 'down']
     .map(item=>item.departureTime)
-    // const minTime = getMinWaitTime(departureTimes1, departureTimes2)
-    res.send(departureTimes2)
+    const allWaitPairs = getAllMinWaitPairs(departureTimes1, departureTimes2);
+    
+    const useFromAsKey = departureTimes1.length < departureTimes2.length;
+    const uniqueWaitPairs = getUniqueMinWaits(allWaitPairs, useFromAsKey);
+    
+    res.json({ transfers: uniqueWaitPairs });
   } catch (error) {
-    throw(error)
+    console.error('❌ 에러 in /get-root:', error.message);
+    res.status(500).json({ error: '서버 오류 발생', detail: error.message });
   }
 });
 
@@ -266,18 +271,41 @@ function minutesToTime(minutes){
 }
 
 
-async function getMinWaitTime(scheduleA, scheduleB) {
+function getAllMinWaitPairs(scheduleA, scheduleB) {
   const aMinutes = scheduleA.map(timeToMinutes);
   const bMinutes = scheduleB.map(timeToMinutes);
-  let i=0, j=0
-  let times = []
-  while (i < aMinutes.length && j < bMinutes.length) {
-    if (bMinutes[j]<=aMinutes[i]) {
-      times = times + [aMinutes[i-1], bMinutes[j], aMinutes[i-1]-bMinutes[j]]
-      j++; 
-    } else {
-      i++;  
+
+  const results = [];
+
+  for (let i = 0; i < aMinutes.length; i++) {
+    const aTime = aMinutes[i];
+
+    const bMatch = bMinutes.find(bTime => bTime >= aTime);
+    if (bMatch !== undefined) {
+      results.push({
+        from: minutesToTime(aTime),
+        to: minutesToTime(bMatch),
+        waitMinutes: bMatch - aTime
+      });
     }
-  }}
+  }
+
+  return results;
+}
+
+function getUniqueMinWaits(pairs, useFromAsKey) {
+  const bestMap = new Map();
+
+  for (const pair of pairs) {
+    const key = useFromAsKey ? pair.from : pair.to;
+    const existing = bestMap.get(key);
+
+    if (!existing || pair.waitMinutes < existing.waitMinutes) {
+      bestMap.set(key, pair);
+    }
+  }
+
+  return Array.from(bestMap.values());
+}
 
 module.exports = router;
