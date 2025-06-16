@@ -27,15 +27,14 @@ router.get('/get-root', async (req, res) => {
       }));    
 
     const {data:schedule1} = await getSubwatSchedule(result[0].endID, result[0].wayCode)
-    const {data:schedule2} = await getSubwatSchedule(result[1].startID, result[0].wayCode)
+    const {data:schedule2} = await getSubwatSchedule(result[1].startID, result[1].wayCode)
 
     const dayType = "weekdaySchedule"
-    const departureTimes1 = schedule1.result[dayType].up
+    const departureTimes1 =  schedule1.result[dayType][result[0].wayCode === 1 ? 'up' : 'down']
     .map(item=>item.departureTime)
-    const departureTimes2 =  schedule2.result[dayType].up
+    const departureTimes2 =  schedule2.result[dayType][result[1].wayCode === 1 ? 'up' : 'down']
     .map(item=>item.departureTime)
     // const minTime = getMinWaitTime(departureTimes1, departureTimes2)
-
     res.send(departureTimes2)
   } catch (error) {
     throw(error)
@@ -270,12 +269,15 @@ function minutesToTime(minutes){
 async function getMinWaitTime(scheduleA, scheduleB) {
   const aMinutes = scheduleA.map(timeToMinutes);
   const bMinutes = scheduleB.map(timeToMinutes);
-  let memoI=0
-  for(const bTime of scheduleB){
-    for(i=memoI; i<aMinutes.length;i++){
-      
+  let i=0, j=0
+  let times = []
+  while (i < aMinutes.length && j < bMinutes.length) {
+    if (bMinutes[j]<=aMinutes[i]) {
+      times = times + [aMinutes[i-1], bMinutes[j], aMinutes[i-1]-bMinutes[j]]
+      j++; 
+    } else {
+      i++;  
     }
-  }
-}
+  }}
 
 module.exports = router;
