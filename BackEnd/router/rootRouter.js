@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
-const API_KEY = 'tEBVEVC41PifgZPs+s7rTsaACXx0gBHXENLk8PE0MvQ';
+const API_KEY = 'IYCEsHB+QAVMoiYiqW6CVU3DdBoV1YAG3IQmmpYIZE8';
 const fetch = require('node-fetch');
 
 router.use(express.json());
