@@ -14,7 +14,7 @@ router.get('/get-root', async (req, res) => {
   }
   try {
     const data = await getRoot(sx,sy,ex,ey);
-    const path1 = data.result.path[0].subPath
+    const path1 = data.result.path[3].subPath
     
     const result = path1
       .filter(item => item.trafficType === 1)
@@ -91,17 +91,20 @@ router.post('/transfer-wait-times', async (req, res) => {
         EY: ey,
         output: 'json'
       }
-    });
+   });
 
-    const path = pathRes.data.result.path[0];
+    const path = pathRes.data.result.path[3];
     const subPaths = path.subPath;
+    const totalPayment = path.info?.payment;
+    const totalTime = path.info?.totalTime;
 
-    // 🗺️ 경로 요약 생성
-    const summary = subPaths.map((p, i) => {
+    // ✅ 네가 만든 routeDetails 코드 여기 붙이기
+    const routeDetails = subPaths.map((p, i) => {
       let name = '';
       let time = p.sectionTime;
+      let distance = p.distance || null;
+      let detail = {};
 
-      // 환승 통로 감지: 도보 + 0분 + 앞뒤 모두 지하철
       const prev = subPaths[i - 1];
       const next = subPaths[i + 1];
       const isTransferPath = (
@@ -113,24 +116,101 @@ router.post('/transfer-wait-times', async (req, res) => {
 
       if (isTransferPath) {
         name = '환승 통로';
-        time = 8; // 사용자 정의 환승 통로 시간
+        time = "환승통로";
+        distance = null;
+        detail = {
+          설명: '역 간 환승 통로 이동'
+        };
       } else if (p.trafficType === 1) {
-        name = p.lane?.[0]?.name || '지하철';
+        // 지하철
+        name = '지하철';
+
+         // 세부경로 추가
+        const detailPath = (p.passStopList?.stations || []).map(station => ({
+          역이름: station.stationName || null,
+          역ID: station.stationID || null,
+          지역ID: station.stationCityCode || null,
+          역좌표: {
+            x: station.x || null,
+            y: station.y || null
+          }
+        }));
+
+        detail = {
+          노선이름: p.lane?.[0]?.name || null,
+          노선ID: p.lane?.[0]?.subwayCode || null,
+          역개수: p.stationCount || null,
+          탑승역: {
+            이름: p.startName || null,
+            위도: p.startY || null,
+            경도: p.startX || null
+          },
+          하차역: {
+            이름: p.endName || null,
+            위도: p.endY || null,
+            경도: p.endX || null
+          },
+          세부경로: detailPath
+        };
       } else if (p.trafficType === 2) {
-        name = p.lane?.[0]?.busNo || '버스';
+        // 버스
+        name = '버스';
+        detail = {
+          버스번호: p.lane?.[0]?.busNo || null,
+          버스ID: p.lane?.[0]?.busID || null,
+          버스노선ID: p.lane?.[0]?.busCityCode || null
+        };
       } else {
+        // 도보
         name = '도보';
+        detail = {};
       }
 
-      return `${name} ${time}분`;
-    }).join(' → ');
+      const result = {
+        이동수단: name,
+        이동시간: typeof time === 'number' ? `${time}분` : time,
+        이동거리: distance !== null ? `${distance}m` : null
+      };
 
 
-    console.log('🗺️ 경로 요약:', summary);
+      if (name !== '도보' && name !== '환승 통로') {
+        result["노선"] = detail;
+      }
 
-    // 2. 환승 계산
-    const result = await calculateTransferWaitTimes(subPaths);
-    return res.json({ summary, transfers: result });
+      if (name === '환승 통로') {
+        result["설명"] = detail.설명;
+      }
+
+      return result;
+    });
+
+    // summary 생성
+    const summary = routeDetails
+      .map(r => {
+        const timeStr = typeof r.이동시간 === 'string' ? r.이동시간 : `${r.이동시간}분`;
+        return `${r.이동수단} ${timeStr}`;
+      })
+      .join(' → ');
+
+    const summaryWithFare = totalPayment
+      ? `${summary} (총 요금 ${totalPayment}원)`
+      : summary;
+
+    // 환승 대기시간도 그대로 계산
+    const transfers = await calculateTransferWaitTimes(subPaths);
+
+    // ✅ 최종 응답
+    return res.json({
+      summary: summaryWithFare,
+      result: {
+        경로: {
+          "총 소요 시간": totalTime || null,
+          "요금": totalPayment || null,
+          "세부 경로": routeDetails
+        },
+      },
+      transfers
+    });
 
   } catch (err) {
     console.error('❌ 에러:', err.response?.data || err.message);
