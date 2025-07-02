@@ -26,27 +26,52 @@ router.get('/get-root', async (req, res) => {
         wayCode : item.wayCode
       }));    
 
-    const {data:schedule1} = await getSubwatSchedule(result[0].endID, result[0].wayCode)
-    const {data:schedule2} = await getSubwatSchedule(result[1].startID, result[1].wayCode)
 
-    const dayType = "weekdaySchedule"
-    const departureTimes1 =  schedule1.result[dayType][result[0].wayCode === 1 ? 'up' : 'down']
-    .map(item=>item.departureTime)
-    const departureTimes2 =  schedule2.result[dayType][result[1].wayCode === 1 ? 'up' : 'down']
-    .map(item=>item.departureTime)
-    const allWaitPairs = getAllMinWaitPairs(departureTimes1, departureTimes2);
-    
-    const useFromAsKey = departureTimes1.length < departureTimes2.length;
-    const uniqueWaitPairs = getUniqueMinWaits(allWaitPairs, useFromAsKey);
-    
-    res.json({ transfers: uniqueWaitPairs });
+    if(result.length == 2){
+      const {data:schedule1} = await getSubwatSchedule(result[0].endID, result[0].wayCode)
+      const {data:schedule2} = await getSubwatSchedule(result[1].startID, result[1].wayCode)
+
+      const dayType = "weekdaySchedule"
+      const departureTimes1 =  schedule1.result[dayType][result[0].wayCode === 1 ? 'up' : 'down']
+      .map(item=>item.departureTime)
+      const departureTimes2 =  schedule2.result[dayType][result[1].wayCode === 1 ? 'up' : 'down']
+      .map(item=>item.departureTime)
+      const allWaitPairs = getAllMinWaitPairs(departureTimes1, departureTimes2);
+      
+      const useFromAsKey = departureTimes1.length < departureTimes2.length;
+      const uniqueWaitPairs = getUniqueMinWaits(allWaitPairs, useFromAsKey);
+      
+      res.json({ transfers: uniqueWaitPairs });
+    }
+    else if(result.length == 3){
+      const { data: schedule1 } = await getSubwatSchedule(result[0].endID, result[0].wayCode);
+      const { data: schedule2 } = await getSubwatSchedule(result[1].startID, result[1].wayCode);
+      const { data: schedule3 } = await getSubwatSchedule(result[1].endID, result[1].wayCode);
+      const { data: schedule4 } = await getSubwatSchedule(result[2].startID, result[2].wayCode);
+
+      const dayType = "weekdaySchedule";
+      const dep1 = schedule1.result[dayType][result[0].wayCode === 1 ? 'up' : 'down'].map(item => item.departureTime);
+      const dep2 = schedule2.result[dayType][result[1].wayCode === 1 ? 'up' : 'down'].map(item => item.departureTime);
+      const dep3 = schedule3.result[dayType][result[1].wayCode === 1 ? 'up' : 'down'].map(item => item.departureTime);
+      const dep4 = schedule4.result[dayType][result[2].wayCode === 1 ? 'up' : 'down'].map(item => item.departureTime);
+
+      // 1차 환승: 지하철 1 → 지하철 2
+      const pairs1 = getAllMinWaitPairs(dep1, dep2);
+      // 2차 환승: 지하철 2 → 지하철 3
+      const pairs2 = getAllMinWaitPairs(dep3, dep4);
+
+      // 중복 제거 기준은 가운데(지하철 2) 기준으로: from 또는 to를 기준으로 병합
+      const useFromAsKey = dep2.length < dep3.length;
+      const unique1 = getUniqueMinWaits(pairs1, useFromAsKey);
+      const unique2 = getUniqueMinWaits(pairs2, !useFromAsKey);
+
+      return res.json({ transfers: [...unique1, ...unique2] });
+    }
   } catch (error) {
     console.error('❌ 에러 in /get-root:', error.message);
     res.status(500).json({ error: '서버 오류 발생', detail: error.message });
   }
 });
-
-
 
 router.post('/transfer-wait-times', async (req, res) => {
   const { sx, sy, ex, ey } = req.body;
