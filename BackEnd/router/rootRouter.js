@@ -14,7 +14,7 @@ router.get('/get-root', async (req, res) => {
   }
   try {
     const data = await getRoot(sx,sy,ex,ey);
-    const path1 = data.result.path[3].subPath
+    const path1 = data.result.path[0].subPath
     
     const result = path1
       .filter(item => item.trafficType === 1)
@@ -93,7 +93,7 @@ router.post('/transfer-wait-times', async (req, res) => {
       }
    });
 
-    const path = pathRes.data.result.path[3];
+    const path = pathRes.data.result.path[0];
     const subPaths = path.subPath;
     const totalPayment = path.info?.payment;
     const totalTime = path.info?.totalTime;
@@ -155,11 +155,46 @@ router.post('/transfer-wait-times', async (req, res) => {
       } else if (p.trafficType === 2) {
         // 버스
         name = '버스';
-        detail = {
+
+        const detailPath = (p.passStopList?.stations || []).map(station => ({
+          정류장_이름: station.stationName || null,
+          정류장_ID: station.stationID || null,
+          지역_ID: station.stationCityCode || null,
+          정류장_좌표: {
+            x: station.x || null,
+            y: station.y || null
+          }
+        }));
+
+         // 노선에 딱 3개만
+        const lineInfo = {
           버스번호: p.lane?.[0]?.busNo || null,
           버스ID: p.lane?.[0]?.busID || null,
           버스노선ID: p.lane?.[0]?.busCityCode || null
         };
+
+          // result 객체
+          const result = {
+            이동수단: name,
+            이동시간: typeof time === 'number' ? `${time}분` : time,
+            이동거리: distance !== null ? `${distance}m` : null,
+            노선: lineInfo,
+            정류장_개수: p.stationCount || 0,
+            탑승_정류장: {
+              이름: p.startName || null,
+              위도: p.startY || null,
+              경도: p.startX || null
+            },
+            하차_정류장: {
+              이름: p.endName || null,
+              위도: p.endY || null,
+              경도: p.endX || null
+            },
+            세부_경로: detailPath
+          };
+
+          return result;
+          
       } else {
         // 도보
         name = '도보';
@@ -275,7 +310,7 @@ async function getSubwayWaitTime(stationID, wayCode, arrivalTime) {
     console.log('📦 시간표 응답:', JSON.stringify(res.data, null, 2));
     console.log(`📍 요청 정보: stationID=${stationID}, wayCode=${wayCode}, 예상도착=${arrivalTime}`);
 
-    const timetableByHour = res.data.result?.OrdList?.down?.time;
+    const timetableByHour = res.data.result?.OrdList?.[wayCode === 1 ? "up" : "down"]?.time;
 
     if (!Array.isArray(timetableByHour)) {
       console.warn('🚫 시간표 항목이 배열이 아님:', res.data.result);
