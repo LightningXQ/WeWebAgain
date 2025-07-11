@@ -10,6 +10,7 @@ const db = require('./db.js');
 const authRouter = require('./router/authRouter.js');
 const apiRouter = require('./router/apiRouter.js')
 const rootRouter = require('./router/rootRouter.js')
+const busRouter = require('./router/busRouter.js')
 
 // ✅ CORS 설정 (프론트엔드와 세션 공유 위해 필요)
 app.use(cors({
@@ -40,6 +41,7 @@ db.connect((err) => {
 app.use('/auth', authRouter);
 app.use('/api',apiRouter);
 app.use('/root',rootRouter);
+app.use('/bus', busRouter);
 
 // 테스트용 API
 app.get('/', (req, res) => {
