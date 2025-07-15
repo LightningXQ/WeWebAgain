@@ -2,7 +2,6 @@
   const axios = require('axios');
   const router = express.Router();
   const API_KEY = 'IYCEsHB+QAVMoiYiqW6CVU3DdBoV1YAG3IQmmpYIZE8';
-  const fetch = require('node-fetch');
 
   router.use(express.json());
 
@@ -29,7 +28,7 @@
     const pathList = pathRes.data.result.path;
     console.log("🔎 전체 경로 수:", pathList.length);
 
-      const path = pathRes.data.result.path[3];
+      const path = pathRes.data.result.path[4];
       const subPaths = path.subPath;
       const totalPayment = path.info?.payment;
       const totalTime = path.info?.totalTime;
@@ -42,10 +41,48 @@
           startID: item.startID,
           endName: item.endName,
           endID: item.endID,
-          wayCode : item.wayCode
+          wayCode : item.wayCode,
+          subwayCode: item.lane?.[0]?.subwayCode || null
         }));
 
-      const transfers = await getRootTransfers(result);
+      // 예) 환승 인덱스
+      const transferIndex = 2;
+
+      const {transfers, dep2 } = await getRootTransfers(result);
+      console.log("✅ dep2 (수영역 출발 시간표):", dep2);
+      
+      const t = transfers.find(x => x.waitMinutes >= 5); //혹시 모를 대비로 5분 이상
+      const transformed = transformT(transfers, subPaths, transferIndex, dep2);
+
+      // ✅ 여기서 groupedTransfers 만들어줌
+      let groupedTransfers = [];
+
+      if (transformed.length >= 2) {
+        for (let i = 0; i < transformed[0].length; i++) {
+          groupedTransfers.push({
+            transfer1: transformed[0][i],
+            transfer2: transformed[1]?.[i] || null
+          });
+        }
+      }
+
+      // subPaths 로부터 이동시간 배열 추출
+      const sectionTimesBefore = getSectionTimesBefore(subPaths, transferIndex);
+      const sectionTimesAfter = getSectionTimesAfter(subPaths, transferIndex);
+
+      const totalBefore = sectionTimesBefore.reduce((a, b) => a + b, 0);
+      const totalAfter = sectionTimesAfter.reduce((a, b) => a + b, 0);
+
+      const from = t?.from || "05:30";
+      const to = t?.to || "05:35";
+
+      const realFromTime = minutesToTime(
+        timeToMinutes(from) - totalBefore
+      );
+      const realToTime = minutesToTime(
+        timeToMinutes(to) + totalAfter
+      );
+
 
       // ✅ 네가 만든 routeDetails 코드 여기 붙이기
       const routeDetails = subPaths.map((p, i) => {
@@ -104,7 +141,7 @@
 
           // ✅ 여기서 transfers 배열에서 매칭
           const transferMatch = transfers.find(t => 
-            t.toStation === p.startName &&
+            t.to === p.startName &&
             t.toLine === p.lane?.[0]?.subwayCode
           );
           if (transferMatch && transferMatch.waitMinutes != null) {
@@ -203,18 +240,56 @@
       // vehicleArray 생성
       const vehicleArray = routeDetails.map(r => r.이동수단);
 
+      //출발시간, 도착시간, 환승대기시간
+      // ✅ 모든 환승쌍을 펼침
+      const allTransfersFlat = transformed.flat();
+
+      // ✅ 출발/도착 시간 배열 추출
+      let realFromArray = [];
+      let realToArray = [];
+
+      if (transformed.length > 0 && !Array.isArray(transformed[0])) {
+        // 환승이 한 번만 있는 경우
+        realFromArray = transformed.map(t => t.realFrom);
+        realToArray = transformed.map(t => t.realTo);
+      } else {
+        // 환승이 2번 이상인 경우
+        const firstGroup = transformed[0] || [];
+        const lastGroup = transformed[transformed.length - 1] || [];
+
+        realFromArray = firstGroup.map(t => t.realFrom);
+        realToArray = lastGroup.map(t => t.realTo);
+      }
+
+
+      // ✅ 환승대기시간 그룹별 배열 (네가 원하는 규칙)
+      let waitMinutesArray = [];
+
+      if (transformed.length > 0 && !Array.isArray(transformed[0])) {
+        waitMinutesArray = transformed.map(t => [t.waitMinutes]);
+      } else {
+        const groupsWait = transformed.map(group =>
+          group.map(t => t.waitMinutes)
+        );
+        waitMinutesArray = transpose(groupsWait);
+      }
+
       // ✅ 최종 응답
       return res.json({
         summary: summaryWithFare,
         result: {
           경로: {
             "이동수단": vehicleArray,
+            "출발 시간": realFromArray,
+            "도착 시간": realToArray,
+            "환승 대기 시간": waitMinutesArray,
             "총 소요 시간": totalTime || null,
             "요금": totalPayment || null,
             "세부 경로": routeDetails
           },
         },
-        transfers
+        //transfers: transformed,
+        groupedTransfers: groupedTransfers // ✅ 여기에 추가
       });
 
     } catch (err) {
@@ -223,137 +298,7 @@
     }
   });
 
-
-
-
-
-
-  // 🧠 환승 대기시간 계산 함수
-  async function calculateTransferWaitTimes(subPaths) {
-    const transfers = [];
-    let timeAccumulator = 0;
-    let prev = null;
-
-    for (const curr of subPaths) {
-      if (curr.trafficType === 3) {
-        timeAccumulator += curr.sectionTime || 0;
-        continue;
-      }
-
-      if (prev) {
-        const isTransfer =
-          prev.trafficType !== curr.trafficType ||
-          getVehicleName(prev) !== getVehicleName(curr);
-
-        if (isTransfer && curr.trafficType === 1 && curr.startID && curr.wayCode !== undefined) {
-          const arrivalTime = addMinutesToTime('09:00', timeAccumulator);
-          const waitMin = await getSubwayWaitTime(curr.startID, curr.wayCode, arrivalTime);
-
-          transfers.push({
-            from: getVehicleName(prev),
-            fromLine: current.wayCode,         // 또는 current.laneName
-            to: getVehicleName(curr),
-            toLine: next.wayCode,              // 또는 next.laneName
-            predictedArrival: arrivalTime,
-            waitMinutes: waitMin
-          });
-        }
-      }
-
-      timeAccumulator += curr.sectionTime || 0;
-      prev = curr;
-    }
-
-    return transfers;
-  }
-
-  // 🚇 지하철 시간표 조회
-  async function getSubwayWaitTime(stationID, wayCode, arrivalTime) {
-    try {
-      const res = await axios.get('https://api.odsay.com/v1/api/searchSubwaySchedule', {
-        params: {
-          apiKey: API_KEY,
-          stationID,
-          wayCode,
-          showExpressTime: 1
-        }
-      });
-
-      console.log('📦 시간표 응답:', JSON.stringify(res.data, null, 2));
-      console.log(`📍 요청 정보: stationID=${stationID}, wayCode=${wayCode}, 예상도착=${arrivalTime}`);
-
-      const timetableByHour = res.data.result?.OrdList?.[wayCode === 1 ? "up" : "down"]?.time;
-
-      if (!Array.isArray(timetableByHour)) {
-        console.warn('🚫 시간표 항목이 배열이 아님:', res.data.result);
-        return null;
-      }
-
-      const [arrH, arrM] = arrivalTime.split(':').map(Number);
-      const arrMinutes = arrH * 60 + arrM;
-
-      for (const { Idx, list } of timetableByHour) {
-        const hour = parseInt(Idx, 10);
-        if (isNaN(hour) || hour < arrH) continue;
-
-        const minutes = list.match(/\d{2}/g)?.map(m => parseInt(m, 10));
-        if (!minutes) continue;
-
-        for (const min of minutes) {
-          const totalMin = hour * 60 + min;
-          if (totalMin >= arrMinutes) {
-            return totalMin - arrMinutes;
-          }
-        }
-      }
-
-      return null;
-    } catch (err) {
-      console.error('🔻 시간표 조회 실패:', err.message);
-      return null;
-    }
-  }
-
-  // ⏱ 시간 더하기 함수
-  function addMinutesToTime(baseTime, minutesToAdd) {
-    const [h, m] = baseTime.split(':').map(Number);
-    const total = h * 60 + m + minutesToAdd;
-    const hh = String(Math.floor(total / 60)).padStart(2, '0');
-    const mm = String(total % 60).padStart(2, '0');
-    return `${hh}:${mm}`;
-  }
-
-  // 교통수단 이름
-  function getVehicleName(section) {
-    if (section.trafficType === 1) return section.lane?.[0]?.name || '지하철';
-    if (section.trafficType === 2) return section.lane?.[0]?.busNo || '버스';
-    return '도보';
-  }
-
-  async function getRoot(sx, sy, ex, ey) {
-    const url = 'https://api.odsay.com/v1/api/searchPubTransPathT';
-
-    try {
-      const response = await axios.get(url, {
-        params: {
-          apiKey: API_KEY,
-          lang: 0,
-          SX: sx,
-          SY: sy,
-          EX: ex,
-          EY: ey,
-          // SearchPathType : 1
-        }
-      });
-
-      return response.data;
-    } catch (error) {
-      const detail = error.response?.data || error.message;
-      console.error('ODsay API 호출 실패:', detail);
-      throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
-    }
-  }
-
+  //지하철 시간표 가져오기 ODSAY API 사용
   async function getSubwatSchedule(stationID, wayCode){
     const url = "https://api.odsay.com/v1/api/searchSubwaySchedule"
     try {
@@ -371,11 +316,13 @@
     }
   }
 
-
+  //시:분 -> 분 으로 변환
   function timeToMinutes(timeStr) {
     const [hh, mm] = timeStr.split(":").map(Number);
     return hh * 60 + mm;
   }
+
+  // 분 -> 시:분 문자열로 변경
   function minutesToTime(minutes){
     const hh = Math.floor(minutes/60)
     const mm = minutes%60
@@ -383,7 +330,8 @@
   }
 
 
-  function getAllMinWaitPairs(scheduleA, scheduleB) {
+  // A 열차 도착 직후 B 열차가 언제 있는지 찾아서 두 열차 간 대기시간 구함
+  function getAllMinWaitPairs(scheduleA, scheduleB, fromSection, toSection) {
     const aMinutes = scheduleA.map(timeToMinutes);
     const bMinutes = scheduleB.map(timeToMinutes);
 
@@ -394,17 +342,25 @@
 
       const bMatch = bMinutes.find(bTime => bTime >= aTime);
       if (bMatch !== undefined) {
-        results.push({
-          from: minutesToTime(aTime),
-          to: minutesToTime(bMatch),
-          waitMinutes: bMatch - aTime
-        });
+        const waitMinutes = bMatch - aTime;
+        if(waitMinutes >= 3){
+          results.push({
+            from: minutesToTime(aTime),
+            to: minutesToTime(bMatch),
+            waitMinutes: bMatch - aTime,
+            fromLine: fromSection?.subwayCode || null,
+            fromStation: fromSection.endName,
+            toLine: toSection?.subwayCode || null,
+            toStation: toSection.startName
+          });
+        }
       }
     }
 
     return results;
   }
 
+  //대기시간 목록 중에 중복 출발(or 도착) 제거하고 대기 시간이 가장 짧은 쌍만 남김
   function getUniqueMinWaits(pairs, useFromAsKey) {
     const bestMap = new Map();
 
@@ -427,45 +383,248 @@
    * @returns {Promise<Array>} transfers
    */
   async function getRootTransfers(result) {
+    const MIN_WAIT_TIME = 180;
+
+    let allTransfers = [];
+    let dep2 = [];
+
     if (result.length === 2) {
       const { data: schedule1 } = await getSubwatSchedule(result[0].endID, result[0].wayCode);
       const { data: schedule2 } = await getSubwatSchedule(result[1].startID, result[1].wayCode);
 
       const dayType = "weekdaySchedule";
-      const departureTimes1 = schedule1.result[dayType][result[0].wayCode === 1 ? 'up' : 'down']
-        .map(item => item.departureTime);
-      const departureTimes2 = schedule2.result[dayType][result[1].wayCode === 1 ? 'up' : 'down']
-        .map(item => item.departureTime);
+      const dep1 = extractDepartureTimes(schedule1, result[0].wayCode);
+      dep2 = extractDepartureTimes(schedule2, result[1].wayCode);
 
-      const allWaitPairs = getAllMinWaitPairs(departureTimes1, departureTimes2);
-      const useFromAsKey = departureTimes1.length < departureTimes2.length;
+      const allWaitPairs = getAllMinWaitPairs(dep1, dep2, result[0], result[1]);
+      const useFromAsKey =  dep1.length < dep2.length;
       const uniqueWaitPairs = getUniqueMinWaits(allWaitPairs, useFromAsKey);
 
-      return uniqueWaitPairs;
+      allTransfers = uniqueWaitPairs;
 
     } else if (result.length === 3) {
       const { data: schedule1 } = await getSubwatSchedule(result[0].endID, result[0].wayCode);
       const { data: schedule2 } = await getSubwatSchedule(result[1].startID, result[1].wayCode);
-      const { data: schedule3 } = await getSubwatSchedule(result[1].endID, result[1].wayCode);
-      const { data: schedule4 } = await getSubwatSchedule(result[2].startID, result[2].wayCode);
+      const { data: schedule3 } = await getSubwatSchedule(result[2].startID, result[2].wayCode);
 
       const dayType = "weekdaySchedule";
-      const dep1 = schedule1.result[dayType][result[0].wayCode === 1 ? 'up' : 'down'].map(item => item.departureTime);
-      const dep2 = schedule2.result[dayType][result[1].wayCode === 1 ? 'up' : 'down'].map(item => item.departureTime);
-      const dep3 = schedule3.result[dayType][result[1].wayCode === 1 ? 'up' : 'down'].map(item => item.departureTime);
-      const dep4 = schedule4.result[dayType][result[2].wayCode === 1 ? 'up' : 'down'].map(item => item.departureTime);
+      const dep1 = extractDepartureTimes(schedule1, result[0].wayCode);
+      dep2 = extractDepartureTimes(schedule2, result[1].wayCode);
+      const dep3 = extractDepartureTimes(schedule3, result[2].wayCode);
 
-      const pairs1 = getAllMinWaitPairs(dep1, dep2);
-      const pairs2 = getAllMinWaitPairs(dep3, dep4);
+      if (dep1.length === 0 || dep2.length === 0 || dep3.length === 0 ) {
+        console.error(`❌ Some schedules missing. Skipping transfer calculation.`);
+        return [];
+      }
+      
+      const pairs1 = getAllMinWaitPairs(dep1, dep2, result[0], result[1]);
+      const pairs2 = getAllMinWaitPairs(dep2, dep3, result[1], result[2]);
 
       const useFromAsKey = dep2.length < dep3.length;
       const unique1 = getUniqueMinWaits(pairs1, useFromAsKey);
       const unique2 = getUniqueMinWaits(pairs2, !useFromAsKey);
 
-      return [...unique1, ...unique2];
-    } else {
+      allTransfers = [unique1, unique2];
+    }
+    
+    return {
+      transfers: allTransfers,
+      dep2: dep2 || []
+    };
+
+  }
+
+  //출발시간 구할 때 시간 뺄셈 함수
+  function subtractMinutesFromTime(baseTime, minutesToSubtract) {
+    const [h, m] = baseTime.split(':').map(Number);
+    let total = h * 60 + m - minutesToSubtract;
+    if (total < 0) total += 24 * 60;
+    const hh = String(Math.floor(total / 60)).padStart(2, '0');
+    const mm = String(total % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+
+  //도착 시간 구할 때 시간 덧셈 함수
+  function addMinutesToTime(baseTime, minutesToAdd) {
+    const [h, m] = baseTime.split(':').map(Number);
+    let total = h * 60 + m + minutesToAdd;
+    const hh = String(Math.floor(total / 60)).padStart(2, '0');
+    const mm = String(total % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+
+
+  //출발 시간 배열
+  function extractDepartureTimes(schedule, wayCode) {
+    const dayType = "weekdaySchedule";
+    const dir = wayCode === 1 ? 'up' : 'down';
+
+    const arr = schedule?.result?.[dayType]?.[dir];
+    if (!arr || !Array.isArray(arr)) {
+      console.error(`🚨 No schedule found for direction: ${dir}`);
       return [];
     }
+
+    return arr.map(item => item.departureTime);
+  }
+
+
+  function getSectionTimesBefore(subPaths, transferIndex) {
+    const times = [];
+    for (let i = 0; i < transferIndex; i++) {
+      times.push(subPaths[i].sectionTime || 0);
+    }
+    return times;
+  }
+
+  function getSectionTimesAfter(subPaths, transferIndex) {
+    const times = [];
+    for (let i = transferIndex + 1; i < subPaths.length; i++) {
+      times.push(subPaths[i].sectionTime || 0);
+    }
+    return times;
+  }
+
+  /**
+   * 환승 정보 변환 및 출발/도착시간 계산
+   *
+   * @param {Array} transfers - getRootTransfers에서 얻은 환승 정보
+   * @param {Array} sectionTimesBefore - from 기준으로 이전 구간들의 이동시간 배열 (단위: 분)
+   * @param {Array} sectionTimesAfter - to 기준으로 이후 구간들의 이동시간 배열 (단위: 분)
+   * @returns {Object}
+   */
+  function transformT(transfers, subPaths, transferIndex, dep2 = []) {
+    // case 1: 두 구간 → transfers는 [{...}, {...}] (객체 배열)
+    if (transfers.length > 0 && !Array.isArray(transfers[0])) {
+      const sectionTimesBefore = getSectionTimesBefore(subPaths, transferIndex);
+      const sectionTimesAfter = getSectionTimesAfter(subPaths, transferIndex);
+
+      return [
+        transfers.map(t => {
+          const totalBefore = sectionTimesBefore.reduce((a, b) => a + b, 0);
+          const totalAfter = sectionTimesAfter.reduce((a, b) => a + b, 0);
+
+          const realFrom = subtractMinutesFromTime(t.from, totalBefore);
+          const realTo = t.to;
+
+          return {
+            from: t.from,
+            to: t.to,
+            waitMinutes: t.waitMinutes,
+            realFrom,
+            realTo
+          };
+        })
+      ];
+    }
+    // case 2: 세 구간 → transfers는 [ [...], [...] ]
+    else {
+        let transformed = [];
+
+        let prevToArr = []; // 첫 번째 환승 그룹의 to 값들을 저장
+
+        for (let groupIdx = 0; groupIdx < transfers.length; groupIdx++) {
+          const group = transfers[groupIdx];
+          // 두 번째 환승 이후 구간부터 끝까지만 계산
+          const sectionTimesAfter = getSectionTimesAfter(
+              subPaths,
+              transferIndex + groupIdx
+          );
+          const totalAfter = sectionTimesAfter.reduce((a, b) => a + b, 0);
+
+          let transformedGroup = [];
+
+          for (let tIdx = 0; tIdx < group.length; tIdx++) {
+            const t = group[tIdx];
+
+            let newFrom;
+            let newTo;
+            let waitMinutes = null;
+
+            if (groupIdx === 0) {
+              // 첫 번째 환승
+              const sectionTimesBefore = getSectionTimesBefore(subPaths, transferIndex);
+              const totalBefore = sectionTimesBefore.reduce((a, b) => a + b, 0);
+
+              newFrom = t.from;
+              realFrom = subtractMinutesFromTime(t.from, totalBefore);
+              newTo= t.to;
+              realTo = t.to;
+
+              //첫번째 환승의 to 저장
+              prevToArr[tIdx] = t.to;
+
+            } else {
+              // 두 번째 환승
+
+              // prevTo = 첫 번째 환승의 to
+              const prevTo = prevToArr[tIdx];
+              if (!prevTo) {
+                console.error("🚨 이전 환승 realTo 값이 없습니다. 기본값으로 대체합니다.");
+                continue;
+              }
+
+              // 두 번째 구간 소요시간
+              const currentSection = subPaths[transferIndex + groupIdx];
+              const currentSectionTime = currentSection?.sectionTime || 0;
+
+              // prevTo + 구간 소요 시간 = 두 번째 열차 도착 시각
+              const secondTrainArrival = addMinutesToTime(prevTo, currentSectionTime);
+
+              // 이 도착 시각 이후에 탈 수 있는 열차 찾아야 함
+              const nextTrain = dep2.find(timeStr => {
+                const diff = timeToMinutes(timeStr) - timeToMinutes(secondTrainArrival);
+                return diff >= 3;
+              });
+
+              if (!nextTrain) {
+                console.error(`${secondTrainArrival} 이후 열차 없음. 건너뜀.`);
+                continue;
+              }
+
+              // 두 번째 환승 구간의 from → 두 번째 열차 도착 시각
+              newFrom = secondTrainArrival;
+
+              // 두 번째 환승 구간의 to → 세 번째 열차 출발 시각
+              newTo = nextTrain;
+
+              // 실제 waitMinutes 계산
+              waitMinutes = timeToMinutes(newTo) - timeToMinutes(newFrom);
+              if (waitMinutes < 0) waitMinutes += 24 * 60; // 자정 넘을 경우 방어
+
+              // realFrom, realTo
+              realFrom = newFrom;
+              realTo = addMinutesToTime(newTo, totalAfter);
+            }
+
+            transformedGroup.push({
+              transferNo: groupIdx + 1,
+              from: newFrom,
+              to: newTo,
+              waitMinutes: (groupIdx === 1) ? waitMinutes : t.waitMinutes,
+              fromLine: t.fromLine,
+              fromStation: t.fromStation,
+              toLine: t.toLine,
+              toStation: t.toStation,
+              realFrom: realFrom,
+              realTo: realTo
+            });
+          }
+
+          transformed.push(transformedGroup);
+        }
+
+        return transformed;
+          
+      }
+  }
+
+  //행렬을 행-열 뒤집어서 세로 → 가로로, 가로 → 세로로 바꿔준다
+  function transpose(matrix) {
+    if (matrix.length === 0) return [];
+    return matrix[0].map((_, colIndex) =>
+      matrix.map(row => row[colIndex])
+    );
   }
 
 
