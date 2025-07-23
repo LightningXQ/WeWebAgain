@@ -54,7 +54,7 @@
       const t = transfers.find(x => x.waitMinutes >= 5); //혹시 모를 대비로 5분 이상
       const transformed = transformT(transfers, subPaths, transferIndex, dep2);
 
-      // ✅ 여기서 groupedTransfers 만들어줌
+      // ✅ groupedTransfers 만들어줌
       let groupedTransfers = [];
 
       if (transformed.length >= 2) {
@@ -62,6 +62,13 @@
           groupedTransfers.push({
             transfer1: transformed[0][i],
             transfer2: transformed[1]?.[i] || null
+          });
+        }
+      } else if (transformed.length === 1) {
+        for (let i = 0; i < transformed[0].length; i++) {
+          groupedTransfers.push({
+            transfer1: transformed[0][i],
+            transfer2: null
           });
         }
       }
@@ -505,7 +512,7 @@
           const totalAfter = sectionTimesAfter.reduce((a, b) => a + b, 0);
 
           const realFrom = subtractMinutesFromTime(t.from, totalBefore);
-          const realTo = t.to;
+          const realTo = addMinutesToTime(t.to, totalAfter);
 
           return {
             from: t.from,
