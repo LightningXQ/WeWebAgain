@@ -12,7 +12,7 @@ router.get('/test/:bus_no', async(req, res)=>{
   const busNo = req.params.bus_no;
   const bus = await fetchBusInfo(busNo);
   //const busId = await fetchBusId(busNo);
-  //const route = await fetchBusRoute(busNo)
+  //const route = await fetchBusRoute(busNo);
   res.json(bus)
 })
 router.get('/getbus/:bus_no', async (req, res)=>{
@@ -59,6 +59,7 @@ async function fetchBusInfo(busNo){ //버스 배차시간
     const res = await parser.parseStringPromise(response.data);
     const result = res.response.body.items.item;
     return result
+    
   } catch (error) {
     throw error
   }
