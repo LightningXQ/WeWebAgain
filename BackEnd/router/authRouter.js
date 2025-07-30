@@ -67,6 +67,12 @@ router.get('/check', (req, res) => {
   }
 });
 
+router.get('/login-list', (req, res)=>{
+  if(req.session.user){
+    res.send(`${req.session.user} 세션 유지 중`)
+  }
+})
+
 // 🔹 로그아웃
 router.get('/logout', (req, res) => {
   req.session.destroy();
