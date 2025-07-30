@@ -2,6 +2,8 @@
 const express = require('express');
 const mysql = require('mysql');
 const session = require('express-session');
+const MemoryStore = session.MemoryStore;
+const store = new MemoryStore();  
 const cors = require('cors');
 const app = express();
 const port = 4000;
@@ -24,8 +26,25 @@ app.use(session({
   secret: 'yourSecretKey',
   resave: false,
   saveUninitialized: false,
+  store: store,
   cookie: { secure: false, httpOnly: true }
 }));
+
+setInterval(() => {
+  store.all((err, sessions) => {
+    if (err) {
+      console.error('세션 조회 실패:', err);
+    } else {
+      console.log('📌 현재 유지 중인 세션 목록');
+
+      for (const [sid, session] of Object.entries(sessions)) {
+        console.log(`🟢 세션 ID: ${sid}`);
+        console.dir(session, { depth: null });
+      }
+
+    }
+  });
+}, 10000);
 
 
 // ✅ DB 연결

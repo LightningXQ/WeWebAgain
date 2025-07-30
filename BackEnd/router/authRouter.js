@@ -51,6 +51,7 @@ router.post('/login', async (req, res) => {
     };
 
     res.status(200).send('로그인 성공');
+    console.log(req.session.user)
   } catch (err) {
     console.error('로그인 오류:', err);
     res.status(500).send('로그인 실패');
@@ -67,11 +68,7 @@ router.get('/check', (req, res) => {
   }
 });
 
-router.get('/login-list', (req, res)=>{
-  if(req.session.user){
-    res.send(`${req.session.user} 세션 유지 중`)
-  }
-})
+
 
 // 🔹 로그아웃
 router.get('/logout', (req, res) => {
