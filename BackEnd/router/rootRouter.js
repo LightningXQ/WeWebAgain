@@ -305,23 +305,58 @@
     }
   });
 
-  //지하철 시간표 가져오기 ODSAY API 사용
-  async function getSubwatSchedule(stationID, wayCode){
-    const url = "https://api.odsay.com/v1/api/searchSubwaySchedule"
-    try {
-      const response = await axios.get(url,{
-        params:{
-          apiKey: API_KEY,
-          stationID : stationID,
-          showExpressTime : 1,
-          wayCode : wayCode
+  // ✅ ODCloud API 기반 부산지하철 전체 시간표 (1~4호선 전부) 가져오기
+  async function getBusanSubwayODCloud() {
+    const baseUrl = `https://api.odcloud.kr/api/15082980/v1/uddi:f289c185-dd70-46ef-894f-faa0713559c2`;
+    const serviceKey = "hQpihHgA0fkA5V+YMXlwFnWolJN4AaoNa0m9bB1wKdzECLvcBu/ZZo6kDIzN/vXlH7s1h3zrDvvb4YyEEemZpA==";
+    const perPage = 500;
+    const maxPage = 5;
+    const allData = [];
+
+    for (let page = 1; page <= maxPage; page++) {
+      const fullUrl = `${baseUrl}?serviceKey=${encodeURIComponent(serviceKey)}&page=${page}&perPage=${perPage}`;
+      try {
+        const response = await axios.get(fullUrl);
+        const data = response.data.data;
+        allData.push(...data);
+
+        if (response.data.currentCount < perPage) {
+          break; // 마지막 페이지 도달
         }
-      })
-      return response;
-    } catch (error) {
-      throw error
+      } catch (error) {
+        console.error(`🚨 ${page}페이지 오류:`, error.message);
+        break;
+      }
     }
+
+  // ✅ 포함된 노선 종류 확인
+  const lines = allData.map(d => d["노선명"]);
+  const uniqueLines = [...new Set(lines)];
+  console.log("📌 포함된 전체 노선 종류:", uniqueLines);
+
+  // ✅ 출발역 목록 확인
+  const startStations = [...new Set(allData.map(d => d["출발역"]))].sort();
+  console.log("📍 전체 출발역 목록:", startStations);
+
+  return allData; // 전체 데이터 반환
+}
+
+
+
+  // 특정 역 이름 기준으로 모든 열차의 출발 시각만 추출
+  function extractDepartureTimesODCloud(trains, stationName) {
+    const result = [];
+
+    for (const train of trains) {
+      const depList = train["정거장출발시각"]?.split("+").map(item => item.split("-"));
+      const dep = depList?.find(([_, name]) => name === stationName);
+      if (dep && dep[1]) result.push(dep[1]);
+    }
+
+    return result;
   }
+
+
 
   //시:분 -> 분 으로 변환
   function timeToMinutes(timeStr) {
@@ -396,12 +431,12 @@
     let dep2 = [];
 
     if (result.length === 2) {
-      const { data: schedule1 } = await getSubwatSchedule(result[0].endID, result[0].wayCode);
-      const { data: schedule2 } = await getSubwatSchedule(result[1].startID, result[1].wayCode);
+
+      const trains = await getBusanSubwayODCloud();
 
       const dayType = "weekdaySchedule";
-      const dep1 = extractDepartureTimes(schedule1, result[0].wayCode);
-      dep2 = extractDepartureTimes(schedule2, result[1].wayCode);
+      const dep1 = extractDepartureTimesODCloud(trains, result[0].wayCode);
+      dep2 = extractDepartureTimesODCloud(trains, result[1].wayCode);
 
       const allWaitPairs = getAllMinWaitPairs(dep1, dep2, result[0], result[1]);
       const useFromAsKey =  dep1.length < dep2.length;
@@ -410,14 +445,13 @@
       allTransfers = uniqueWaitPairs;
 
     } else if (result.length === 3) {
-      const { data: schedule1 } = await getSubwatSchedule(result[0].endID, result[0].wayCode);
-      const { data: schedule2 } = await getSubwatSchedule(result[1].startID, result[1].wayCode);
-      const { data: schedule3 } = await getSubwatSchedule(result[2].startID, result[2].wayCode);
 
+      const trains = await getBusanSubwayODCloud();
       const dayType = "weekdaySchedule";
-      const dep1 = extractDepartureTimes(schedule1, result[0].wayCode);
-      dep2 = extractDepartureTimes(schedule2, result[1].wayCode);
-      const dep3 = extractDepartureTimes(schedule3, result[2].wayCode);
+
+      const dep1 = extractDepartureTimesODCloud(trains, result[0].wayCode);
+      dep2 = extractDepartureTimesODCloud(trains, result[1].wayCode);
+      const dep3 = extractDepartureTimesODCloud(trains, result[2].wayCode);
 
       if (dep1.length === 0 || dep2.length === 0 || dep3.length === 0 ) {
         console.error(`❌ Some schedules missing. Skipping transfer calculation.`);
