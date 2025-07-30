@@ -59,7 +59,6 @@ async function fetchBusInfo(busNo){ //버스 배차시간
     const res = await parser.parseStringPromise(response.data);
     const result = res.response.body.items.item;
     return result
-    
   } catch (error) {
     throw error
   }

@@ -61,6 +61,7 @@ router.post('/login', async (req, res) => {
 router.get('/check', (req, res) => {
   if (req.session.user) {
     res.json({ loggedIn: true, user: req.session.user});
+    console.log(req.session)
   } else {
     res.json({ loggedIn: false });
   }
