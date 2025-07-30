@@ -27,6 +27,7 @@ app.use(session({
   cookie: { secure: false, httpOnly: true }
 }));
 
+
 // ✅ DB 연결
 db.connect((err) => {
   if (err) {
@@ -38,6 +39,13 @@ db.connect((err) => {
 });
 
 // ✅ 라우터 등록
+app.use('*', (req, res) => {
+  // 예시: 로그인 여부 확인
+  if (req.session.user) {
+    console.log(`${req.session.user.username} 님 로그인 중`); 
+  }
+  next()
+});
 app.use('/auth', authRouter);
 app.use('/api',apiRouter);
 app.use('/root',rootRouter);
