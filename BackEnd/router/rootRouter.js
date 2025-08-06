@@ -466,10 +466,13 @@
       console.log("🧪 stations2.length:", stations2.length);
 
       if (stations1.length >= 2 && stations2.length >= 2) {
-        const station1 = stations1[stations1.length - 2]?.stationName;
-        const nextStation1 = stations1[stations1.length - 1]?.stationName;
-        const station2 = stations2[0]?.stationName;
-        const nextStation2 = stations2[1]?.stationName;
+        const station1 = dep1SubPath.startName;
+        const stationList1 = stations1.map(s => s.stationName);
+        const nextStation1 = stationList1[stationList1.indexOf(station1) + 1];
+      
+        const station2 = dep2SubPath.startName;
+        const stationList2 = stations2.map(s => s.stationName);
+        const nextStation2 = stationList2[stationList2.indexOf(station2) + 1];
 
         const line1 = dep1SubPath.lane?.[0]?.name;
         const line2 = dep2SubPath.lane?.[0]?.name;
@@ -509,14 +512,17 @@
       const stations3 = dep3SubPath?.passStopList?.stations || [];
 
       if (stations1.length >= 2 && stations2.length >= 2 && stations3.length >= 2) {
-        const station1 = stations1[stations1.length - 2]?.stationName;
-        const nextStation1 = stations1[stations1.length - 1]?.stationName;
+        const station1 = dep1SubPath.startName;
+        const stationList1 = stations1.map(s => s.stationName);
+        const nextStation1 = stationList1[stationList1.indexOf(station1) + 1];
 
-        const station2 = stations2[0]?.stationName;
-        const nextStation2 = stations2[1]?.stationName;
+        const station2 = dep2SubPath.startName;
+        const stationList2 = stations2.map(s => s.stationName);
+        const nextStation2 = stationList2[stationList2.indexOf(station2) + 1];
 
-        const station3 = stations3[0]?.stationName;
-        const nextStation3 = stations3[1]?.stationName;
+        const station3 = dep3SubPath.startName;
+        const stationList3 = stations3.map(s => s.stationName);
+        const nextStation3 = stationList3[stationList3.indexOf(station3) + 1];
 
         const line1 = dep1SubPath.lane?.[0]?.name;
         const line2 = dep2SubPath.lane?.[0]?.name;
