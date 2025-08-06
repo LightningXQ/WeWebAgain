@@ -44,6 +44,7 @@
           endID: item.endID,
           wayCode : item.wayCode,
           subwayCode: item.lane?.[0]?.subwayCode || null,
+          sectionTime: item.sectionTime || 0,
           subPath: item // ← 요 부분 추가
         }));
 
@@ -54,7 +55,6 @@
       const transferIndex = 2;
 
       const {transfers, dep2 } = await getRootTransfers(result);
-      console.log("✅ dep2 (수영역 출발 시간표):", dep2);
       
       const t = transfers.find(x => x.waitMinutes >= 5); //혹시 모를 대비로 5분 이상
       const transformed = transformT(transfers, subPaths, transferIndex, dep2);
@@ -384,14 +384,17 @@
     for (let i = 0; i < aMinutes.length; i++) {
       const aTime = aMinutes[i];
 
-      const bMatch = bMinutes.find(bTime => bTime >= aTime);
+      const sectionTime = fromSection?.sectionTime || 0;
+      const arrivalTime = aTime + sectionTime; // 출발 + 소요시간 → 도착 시각
+
+      const bMatch =  bMinutes.find(bTime => bTime >= arrivalTime); // ✅ 도착 이후
       if (bMatch !== undefined) {
-        const waitMinutes = bMatch - aTime;
+        const waitMinutes = bMatch - arrivalTime;
         if(waitMinutes >= 3){
           results.push({
-            from: minutesToTime(aTime),
+            from: minutesToTime(arrivalTime), // 도착시각으로
             to: minutesToTime(bMatch),
-            waitMinutes: bMatch - aTime,
+            waitMinutes: waitMinutes,
             fromLine: fromSection?.subwayCode || null,
             fromStation: fromSection.endName,
             toLine: toSection?.subwayCode || null,
@@ -664,13 +667,19 @@
               const sectionTimesBefore = getSectionTimesBefore(subPaths, transferIndex);
               const totalBefore = sectionTimesBefore.reduce((a, b) => a + b, 0);
 
+              const currentSectionTime = subPaths[transferIndex]?.sectionTime || 0;
+              
+              // 🟡 원래 from은 dep1 출발 시각인데 → 여기에 currentSectionTime(소요 시간) 더해줘야 도착시각이 됨
+              const fromTrainDeparture = t.from;
+              const fromTrainArrival = addMinutesToTime(fromTrainDeparture, currentSectionTime);
+
               newFrom = t.from;
-              realFrom = subtractMinutesFromTime(t.from, totalBefore);
-              newTo= t.to;
+              realFrom = subtractMinutesFromTime(newFrom, totalBefore);
+
+              newTo = t.to;
               realTo = t.to;
 
-              //첫번째 환승의 to 저장
-              prevToArr[tIdx] = t.to;
+              prevToArr[tIdx] = t.to; // 그대로 유지
 
             } else {
               // 두 번째 환승
