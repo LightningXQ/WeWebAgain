@@ -162,8 +162,8 @@
 
           const result = {
             이동수단: name,
-            이동시간: typeof time === 'number' ? `${time}분` : time,
-            이동거리: distance !== null ? `${distance}m` : null,
+            이동시간: typeof time === 'number' ? `${time}` : time,
+            이동거리: distance !== null ? `${distance}` : null,
             노선: detail
           };
 
@@ -194,8 +194,8 @@
             // result 객체
             const result = {
               이동수단: name,
-              이동시간: typeof time === 'number' ? `${time}분` : time,
-              이동거리: distance !== null ? `${distance}m` : null,
+              이동시간: typeof time === 'number' ? `${time}` : time,
+              이동거리: distance !== null ? `${distance}` : null,
               노선: lineInfo,
               정류장_개수: p.stationCount || 0,
               탑승_정류장: {
@@ -221,8 +221,8 @@
 
         const result = {
           이동수단: name,
-          이동시간: typeof time === 'number' ? `${time}분` : time,
-          이동거리: distance !== null ? `${distance}m` : null
+          이동시간: typeof time === 'number' ? `${time}` : time,
+          이동거리: distance !== null ? `${distance}` : null
         };
 
 
