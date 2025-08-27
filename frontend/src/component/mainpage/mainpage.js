@@ -69,8 +69,10 @@ const Mainpage = () => {
 	const [endLocation, setEndLocation] = useState("");
 	const [arrivalTime, setArrivalTime] = useState(null);
 	const [arrivalDate, setArrivalDate] = useState(null);
-
-	const [searchResult, setSearchResult] = useState([]);
+	const [startLocationSearchResult, setStartLocationSearchResult] = useState([]);
+	const [endLocationSearchResult, setEndLocationSearchResult] = useState([]);
+	const [startCoords, setStartCoords] = useState(null);
+	const [endCoords, setEndCoords] = useState(null);
 
 	const handleSearch = () => {
 		console.log(startLocation, endLocation, arrivalDate, arrivalDate);
@@ -99,36 +101,8 @@ const Mainpage = () => {
 		getUserInfo();
 	}, []);
 
-	// useEffect(() => {
-	// 	const apiTest1 = async () => {
-	// 		try {
-	// 			let responseList = []
-	// 			for (let number = 1; number < 10; number++) {
-	// 				const response = await axios.get(`https://apis.data.go.kr/1613000/BusRoutespecificStopInformation/getBusRoutespecificStopInformation?serviceKey=EvKLpvREUknBQwnfnB%2BFTdLwm6XJvZ3qLZuP8TuJO9DNrdO1iooes0295IrgsNO9Rcia4ahjp2yx8fyhhvuUbg%3D%3D&pageNo=${number}&numOfRows=10&opr_ymd=20250405&ctpv_cd=26&sgg_cd=26380&dataType=JSON`,
-	// 					{
-	// 						headers: {
-	// 							'accept': '*/*'
-	// 						}
-	// 					}
-	// 				);
-	// 				for (let i = 0; i < 10; i++) {
-	// 					responseList.push(response.data.Response.body.items.item[i])
-	// 				}
-	// 			}
-	// 			console.log(responseList);
-	// 			return;
-	// 		} catch (error) {
-	// 			console.log(error);
-	// 			return;
-	// 		}
-	// 	}
-
-	// 	apiTest1();
-
-	// }, [])
-
 	useEffect(() => {
-		const apiTest2 = async () => {
+		const startLocationSearch = async () => {
 			try {
 				const response = await axios.get(
 					"https://apis.openapi.sk.com/tmap/pois",
@@ -147,26 +121,136 @@ const Mainpage = () => {
 					}
 				);
 
-
 				/** POI 이름만 추출해서 한 번에 state 교체 */
-				const names = response.data.searchPoiInfo.pois.poi.map(
-					poi => poi.name
-				);
-				setSearchResult(names);          // ✅ 단일 setState
-
-				// setSearchResult([]);
-
-				// for (let i = 0; i < 10; i++) {
-				// 	setSearchResult( // 아래의 새로운 배열로 state를 변경합니다.
-				// 		[
-				// 			...searchResult, // 기존 배열의 모든 항목에,
-				// 			response.data.searchPoiInfo.pois.poi[i].name // 마지막에 새 항목을 추가합니다.
-				// 		]
-				// 	);
-				// }
+				const names = [
+					...new Set(
+						response.data.searchPoiInfo.pois.poi.map((poi => poi.name))
+					),
+				];
+				setStartLocationSearchResult(names);           // 문자열 배열이어도 고유성 확보, ✅ 단일 setState
 
 				console.log(startLocation);
-				console.log(searchResult);
+				console.log(response.data);
+				console.log(startLocationSearchResult);
+
+				return;
+			} catch (error) {
+				console.log(error);
+				return;
+			}
+		}
+
+		startLocationSearch();
+	}, [startLocation]);
+
+	useEffect(() => {
+		const endLocationSearch = async () => {
+			try {
+				const response = await axios.get(
+					"https://apis.openapi.sk.com/tmap/pois",
+					{
+						params: {
+							version: "1",
+							format: "json",
+							searchKeyword: endLocation,
+							resCoordType: "EPSG3857",
+							reqCoordType: "WGS84GEO",
+							count: 10,
+						},
+						headers: {
+							appKey: "WhGcxVojKO7g0CL8lD1NYgw2TiEf2r25qFNDUpOd",
+						},
+					}
+				);
+
+				/** POI 이름만 추출해서 한 번에 state 교체 */
+				const names = [
+					...new Set(
+						response.data.searchPoiInfo.pois.poi.map((poi => poi.name))
+					),
+				];
+				setEndLocationSearchResult(names);           // 문자열 배열이어도 고유성 확보, ✅ 단일 setState
+
+				console.log(endLocation);
+				console.log(endLocationSearchResult);
+
+				return;
+			} catch (error) {
+				console.log(error);
+				return;
+			}
+		}
+
+		endLocationSearch();
+	}, [endLocation]);
+
+	useEffect(() => {
+		const apiTest1 = async () => {
+			try {
+				let responseList = [];
+				for (let number = 1; number < 10; number++) {
+					const BASE_URL =
+					"https://apis.data.go.kr/1613000/BusRoutespecificStopInformation/getBusRoutespecificStopInformation";
+				
+					const response = await axios.get(BASE_URL, {
+						/* 쿼리 파라미터는 params 객체로 깔끔하게 관리 */
+						params: {
+							serviceKey:
+								"EvKLpvREUknBQwnfnB+FTdLwm6XJvZ3qLZuP8TuJO9DNrdO1iooes0295IrgsNO9Rcia4ahjp2yx8fyhhvuUbg==",
+							pageNo: number,
+							numOfRows: 1,
+							opr_ymd: "20250405", // 운영연월일
+							ctpv_cd: 26,         // 광역시·도 코드
+							sgg_cd: 26380,       // 시·군·구 코드
+							dataType: "JSON",
+						},
+						headers: {
+							accept: "*/*",
+						},
+					});
+
+					console.log(response.data);
+
+					for (let i = 0; i < 10; i++) {
+						responseList.push(response.data.Response.body.items.item[i])
+					}
+				}
+
+				console.log(responseList);
+				return;
+			} catch (error) {
+				console.log(error);
+				return;
+			}
+		}
+		apiTest1();
+	}, [])
+
+	useEffect(() => {
+		const apiTest2 = async () => {
+			try {
+				const BASE_URL = "https://api.odsay.com/v1/api/searchPubTransPathT/";
+			
+				const response = await axios.post(BASE_URL, {
+					/* 쿼리 파라미터는 params 객체로 깔끔하게 관리 */
+					params: {
+						apiKey:
+							"EvKLpvREUknBQwnfnB+FTdLwm6XJvZ3qLZuP8TuJO9DNrdO1iooes0295IrgsNO9Rcia4ahjp2yx8fyhhvuUbg==",
+						SX: 129.105518,
+						SY: 35.134626,
+						EX: 128.946189,
+						EY: 35.171906,
+						OPT: 0,
+						SearchType: 0,
+						SearchPathType: 0, // 운영연월일
+						lang: 0,         // 광역시·도 코드
+						output: "json",       // 시·군·구 코드
+					},
+					headers: {
+						accept: "*/*",
+					},
+				});
+				console.log(response.data);
 
 				return;
 			} catch (error) {
@@ -176,7 +260,7 @@ const Mainpage = () => {
 		}
 
 		apiTest2();
-	}, [startLocation]);
+	}, []);
 
 	return (
 		<ThemeProvider theme={theme}>
@@ -186,7 +270,6 @@ const Mainpage = () => {
 				<CustomAppBar isLogin={mode} />
 				<Box sx={{
 					flex: 1,
-
 					display: "flex",
 					flexDirection: "row",
 
@@ -205,14 +288,16 @@ const Mainpage = () => {
 							</Typography>
 							<Autocomplete
 								freeSolo
-								options={searchResult}
+								options={startLocationSearchResult}
 								renderInput={(params) => <TextField {...params} fullWidth placeholder="출발지를 입력하세요." value={startLocation} onChange={(e) => setStartLocation(e.target.value)} sx={{marginBottom: 2}} />}
 							>
 							</Autocomplete>
-							{/* <TextField fullWidth placeholder="출발지를 입력하세요." value={startLocation} onChange={(e) => setStartLocation(e.target.value)} sx={{marginBottom: 2}} /> */}
-							<TextField fullWidth placeholder="도착지를 입력하세요." value={endLocation} onChange={(e) => setEndLocation(e.target.value)} sx={{
-								marginBottom: 6,
-							}} />
+							<Autocomplete
+								freeSolo
+								options={endLocationSearchResult}
+								renderInput={(params) => <TextField {...params} fullWidth placeholder="도착지를 입력하세요." value={endLocation} onChange={(e) => setEndLocation(e.target.value)} sx={{ marginBottom: 6 }} />}
+							>
+							</Autocomplete>
 							<Typography fontSize={24} mb={2} fontWeight="bold" sx={{
 							}}>
 								도착 예정 시간 설정

@@ -47,7 +47,7 @@ const CustomAppBar = ({ isLogin }) => {
 	useEffect(() => {
 		const getUserInfo = async () => {
 			try {
-				const response = await axios.get('http://localhost:4000/auth/check', 
+				const response = await axios.get('http://13.125.156.89:4000/auth/check', 
 				{
 					withCredentials: true,
 					headers: {
