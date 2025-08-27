@@ -28,7 +28,7 @@
     const pathList = pathRes.data.result.path;
     console.log("🔎 전체 경로 수:", pathList.length);
 
-      const path = pathRes.data.result.path[3];
+      const path = pathRes.data.result.path[0];
       const subPaths = path.subPath;
 
       const totalPayment = path.info?.payment;
@@ -351,13 +351,20 @@
 
       const idx = stationList.indexOf(stationName);
       if (idx !== -1 && stationList[idx + 1] === nextStationName) {
-        times.push(stationTimes[idx]);
+        const t = stationTimes[idx];
+        // ✅ 05:00 이전/24:00 이후 컷
+        if (isWithinServiceHHMM(t)) {
+          times.push(t);
+        }
       }
     }
 
     return times.sort(); // 시간 정렬
   }
 
+  // ✅ 운행 시간대(서비스 윈도우): 05:00 ~ 24:00
+  const SERVICE_START_MIN = 5 * 60;      // 05:00
+  const SERVICE_END_MIN   = 24 * 60;     // 24:00 (자정)
 
 
   //시:분 -> 분 으로 변환
@@ -368,9 +375,23 @@
 
   // 분 -> 시:분 문자열로 변경
   function minutesToTime(minutes){
-    const hh = Math.floor(minutes/60)
-    const mm = minutes%60
-    return (`${hh}:${mm}`)
+    // 24시간 롤오버 및 음수 보정
+    minutes = ((minutes % (24*60)) + (24*60)) % (24*60);
+    const hh = String(Math.floor(minutes/60)).padStart(2, '0');
+    const mm = String(minutes%60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+
+  // ✅ “시:분”이 서비스 윈도우 안에 있는지 확인
+  function isWithinServiceHHMM(hhmm) {
+    const m = timeToMinutes(hhmm);
+    return m >= SERVICE_START_MIN && m <= SERVICE_END_MIN;
+  }
+
+  // ✅ “분”값(정수)이 서비스 윈도우 안에 있는지 확인
+  function isWithinServiceMin(mins) {
+    mins = ((mins % (24*60)) + (24*60)) % (24*60);
+    return mins >= SERVICE_START_MIN && mins <= SERVICE_END_MIN;
   }
 
 
@@ -387,10 +408,14 @@
       const sectionTime = fromSection?.sectionTime || 0;
       const arrivalTime = aTime + sectionTime; // 출발 + 소요시간 → 도착 시각
 
+      // ✅ A 도착시각 서비스 윈도우 체크 (05:00~24:00)
+      if (!isWithinServiceMin(arrivalTime)) continue;
+
       const bMatch =  bMinutes.find(bTime => bTime >= arrivalTime); // ✅ 도착 이후
       if (bMatch !== undefined) {
         const waitMinutes = bMatch - arrivalTime;
-        if(waitMinutes >= 3){
+        // ✅ B 출발도 서비스 윈도우 안인지 확인 + 환승 최소 3분
+        if (waitMinutes >= 3 && isWithinServiceMin(bMatch)) {
           results.push({
             from: minutesToTime(arrivalTime), // 도착시각으로
             to: minutesToTime(bMatch),
