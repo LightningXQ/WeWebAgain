@@ -3,13 +3,20 @@ const express = require('express');
 const mysql = require('mysql');
 const session = require('express-session');
 const cors = require('cors');
+const db = require('./db.js');
+
+// ⬇️ [추가] 버스 CSV 1회 로딩을 위한 의존성
+const path = require('node:path');
+const { loadBusCSVsFromDir, busTimetables } = require('./loader/bustimetable');
+
+// (선택) .env를 쓰는 경우에만 활성화
+// require('dotenv').config();
+
+// 🔗 하위 라우터는 apiRouter 하나만 마운트
+const apiRouter = require('./router/apiRouter');
+
 const app = express();
 const port = 4000;
-
-const db = require('./db.js');
-const authRouter = require('./router/authRouter.js');
-const apiRouter = require('./router/apiRouter.js')
-const rootRouter = require('./router/rootRouter.js')
 
 // ✅ CORS 설정 (프론트엔드와 세션 공유 위해 필요)
 app.use(cors({
@@ -36,10 +43,21 @@ db.connect((err) => {
 
 });
 
-// ✅ 라우터 등록
-app.use('/auth', authRouter);
-app.use('/api',apiRouter);
-app.use('/root',rootRouter);
+// ⬇️⬇️⬇️ [추가] 서버 시작 시 버스 CSV 1회 로딩
+(async () => {
+  try {
+    // CSV가 있는 실제 경로로 맞춰줘: 예) BACKEND/data/bus
+    const dataDir = path.join(__dirname, 'data', 'bus');
+    await loadBusCSVsFromDir(dataDir);
+    console.log('✅ 버스 CSV 로딩 완료, 라우트 수:', Object.keys(busTimetables).length);
+  } catch (e) {
+    console.error('❌ 버스 CSV 로딩 실패:', e);
+  }
+})();
+// ⬆️⬆️⬆️ [추가 끝]
+
+// ✅ 라우터: /api 로 통합 마운트
+app.use('/api', apiRouter);
 
 // 테스트용 API
 app.get('/', (req, res) => {
