@@ -6,9 +6,7 @@ const axios = require('axios');
  * - .env를 안 쓴다면 아래 하드코드 자리에 "실제 발급키"를 넣으면 됩니다.
  * - .env를 쓴다면 ODSAY_API_KEY 환경변수로 주입하세요.
  */
-const ODSAY_API_KEY = String(process.env.ODSAY_API_KEY || 'IYCEsHB+QAVMoiYiqW6CVU3DdBoV1YAG3IQmmpYIZE8')
-  .trim()
-  .replace(/^['"]|['"]$/g, ''); // 앞뒤 따옴표 실수 제거
+const ODSAY_API_KEY = (process.env.ODSAY_API_KEY || '').trim();
 
 // (선택) 콘솔에서 앞/뒤 4자리만 확인
 function maskKey(k) {

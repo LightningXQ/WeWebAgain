@@ -3,7 +3,7 @@ const { busTimetables } = require('../loader/bustimetable');
 const { normalizeBusRouteId, normalizeLineName, normalizeStopName, dayTypeToBusKey, dayTypeToSubwayKey } = require('../utils/normalize');
 const { isWithinServiceHHMM } = require('../utils/time');
 
-const OD_CLOUD_KEY = process.env.OD_CLOUD_KEY || "hQpihHgA0fkA5V+YMXlwFnWolJN4AaoNa0m9bB1wKdzECLvcBu/ZZo6kDIzN/vXlH7s1h3zrDvvb4YyEEemZpA==";
+const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
 
 // === [추가 시작] 공통/버스 헬퍼 4종 ===
 

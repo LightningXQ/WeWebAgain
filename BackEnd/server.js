@@ -1,4 +1,5 @@
 // ✅ server.js (완성 버전)
+require('dotenv').config();  // ← 반드시 최상단
 const express = require('express');
 const mysql = require('mysql');
 const session = require('express-session');
