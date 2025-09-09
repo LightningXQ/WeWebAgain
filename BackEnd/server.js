@@ -15,6 +15,7 @@ const { loadBusCSVsFromDir, busTimetables } = require('./loader/bustimetable');
 
 // 🔗 하위 라우터는 apiRouter 하나만 마운트
 const apiRouter = require('./router/apiRouter');
+const transferRouter = require('./router/transferRouter.js');
 
 const app = express();
 const port = 4000;
@@ -59,6 +60,7 @@ db.connect((err) => {
 
 // ✅ 라우터: /api 로 통합 마운트
 app.use('/api', apiRouter);
+app.use('/transfer', transferRouter)
 
 // 테스트용 API
 app.get('/', (req, res) => {
