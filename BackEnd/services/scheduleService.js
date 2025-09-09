@@ -13,8 +13,7 @@ const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
     const serviceKey = OD_CLOUD_KEY; 
 
     const allData = [];
-
-    // 기존처럼 최대 5페이지만 조회
+    
     for (let page = 1; page <= 5; page++) {
       const url = `${baseUrl}?serviceKey=${encodeURIComponent(serviceKey)}&page=${page}&perPage=500`;
       try {

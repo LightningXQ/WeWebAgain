@@ -13,7 +13,7 @@ function maskKey(k) {
   if (!k) return '(empty)';
   return `${k.slice(0, 4)}…${k.slice(-4)}`;
 }
-console.log('[pathService] ODsay key:', maskKey(ODDSAY_API_KEY = ODSAY_API_KEY)); // 키 확인용
+console.log('[pathService] ODsay key:', maskKey(ODSAY_API_KEY));
 
 /**
  * 경로 검색
@@ -74,9 +74,32 @@ async function searchPath({ sx, sy, ex, ey, pathIndex }) {
       throw err;
     }
 
-    // 경로 선택: pathIndex가 유효하면 그걸, 없으면 ODsay가 준 0번(보통 최적)
-    let idx = Number.isInteger(pathIndex) ? pathIndex : 0;
-    if (idx < 0 || idx >= pathList.length) idx = 0;
+    // 경로 선택:
+    // - pathIndex 미지정(undefined/null)이면 0번
+    // - 지정됐는데 정수가 아니거나 범위를 벗어나면 에러
+    let idx;
+    if (pathIndex == null) {
+      idx = 0;
+    } else {
+      if (!Number.isInteger(pathIndex)) {
+        const err = new Error(`pathIndex must be an integer, got: ${pathIndex}`);
+        err.name = 'InvalidPathIndex';
+        err.provided = pathIndex;
+        err.maxIndex = pathList.length - 1;
+        throw err;
+      }
+      if (pathIndex < 0 || pathIndex >= pathList.length) {
+        const err = new Error(
+          `pathIndex out of range: ${pathIndex} (valid: 0..${pathList.length - 1})`
+        );
+        err.name = 'PathIndexOutOfRange';
+        err.provided = pathIndex;
+        err.maxIndex = pathList.length - 1;
+        throw err;
+      }
+      idx = pathIndex;
+    }
+
 
     const path = pathList[idx] || null;
     const subPaths = path?.subPath || [];

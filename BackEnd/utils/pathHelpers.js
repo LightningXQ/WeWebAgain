@@ -1,4 +1,4 @@
-function getSectionTimesBefore(subPaths, transferIndex) {
+  function getSectionTimesBefore(subPaths, transferIndex) {
     const times = [];
     for (let i = 0; i < transferIndex; i++) {
       times.push(subPaths[i].sectionTime || 0);
@@ -56,5 +56,5 @@ function getSectionTimesBefore(subPaths, transferIndex) {
   getSectionTimesAfter,
   getWalkMinutesBetween,
   transpose,
-};
+  };
 

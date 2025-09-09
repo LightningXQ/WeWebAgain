@@ -73,4 +73,4 @@
     resolveDayType,
     dayTypeToBusKey,
     dayTypeToSubwayKey,
-};
+  };
