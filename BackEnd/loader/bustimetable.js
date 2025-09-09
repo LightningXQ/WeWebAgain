@@ -17,7 +17,7 @@ function ensureRoute(routeId) {
 function parseFileName(file) {
   const { name, ext } = path.parse(file);
   if (ext.toLowerCase() !== '.csv') return null;
-  const m = name.match(/^(\w+)[-_](week|holi|sat)$/i);
+  const m = name.match(/^(.+)[-_](week|holi|sat)$/i);
   if (!m) return null;
   return { routeId: String(m[1]), dayKey: m[2].toLowerCase() }; // week|holi|sat
 }

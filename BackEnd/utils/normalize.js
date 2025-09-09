@@ -16,10 +16,13 @@
 
   // "1001(심야)" → "1001", "1001번" → "1001"
   function normalizeBusRouteId(s) {
-    return String(s || '')
-      .replace(/\(.*?\)/g, '')  // 괄호 및 내용 제거
-      .replace(/\s+/g, '')      // 공백 제거
-      .replace(/번$/g, '');     // 끝의 '번' 제거
+    return String(s ?? '')
+      .normalize('NFKC')                 // 전각 숫자/기호 → ASCII
+      .replace(/[\u00A0\u200B]/g, '')    // NBSP/ZWSP 제거
+      .replace(/[–—−‐-]/g, '-')          // 다양한 대시 → 하이픈(-)
+      .replace(/\(.*?\)/g, '')           // 괄호 및 내용 제거
+      .replace(/\s+/g, '')               // 공백 제거
+      .replace(/번$/g, '');              // 끝의 '번' 제거
   }
 
   // dayType 표준화: 요청값을 지하철/버스 키로 동시 변환
