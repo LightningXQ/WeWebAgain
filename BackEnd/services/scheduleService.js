@@ -82,11 +82,41 @@ const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
   }
 
   // 3) (버스) busTimetables에서 출발시각 꺼내기
-  function getBusDepartures(routeId, stopName, busKey) {
+  function getBusDepartures(routeId, stopName, busKey, { nextName, alsoTryNames = [] } = {}) {
     const bucket = busTimetables[routeId] || busTimetables[routeId + '번'] || null;
     if (!bucket) return [];
-    const arr = bucket[busKey]?.get(stopName) || [];
-    return arr.filter(isWithinServiceHHMM);
+    const dayBucket = bucket[busKey];
+    if (!dayBucket) return [];
+    const byStop = dayBucket.byStop || dayBucket; // (구버전 Map과의 호환)
+    const byEdge = dayBucket.byEdge || new Map();
+
+    const raw  = stopName || '';
+    const norm = normalizeStopName(raw);
+
+    // 1) 정규화된 이름을 우선, 실패 시 raw
+    let arr = null;
+
+    // 0) nextName이 있으면 (stop→next) 엣지로 먼저 조회 — 방향 확정
+    if (nextName) {
+      const edgeKey = `${normalizeStopName(stopName)}→${normalizeStopName(nextName)}`;
+      arr = byEdge.get(edgeKey) || null;
+    }
+
+    // 1) 엣지에서 못 찾으면 byStop로 폴백(정규화 우선)
+    if (!arr) {
+      arr = byStop.get(norm) || byStop.get(raw) || null;
+    }
+
+    // 2) (선택) 보조 후보명들도 정규화해서 시도
+    if (!arr && Array.isArray(alsoTryNames)) {
+      for (const cand of alsoTryNames) {
+        const cNorm = normalizeStopName(cand || '');
+        arr = byStop.get(cNorm) || byStop.get(cand) || null;
+        if (arr) break;
+      }
+    }
+
+    return Array.isArray(arr) ? arr.filter(isWithinServiceHHMM) : [];
   }
 
   // 4) (공통) 지하철/버스 출발시각 가져오기
@@ -105,9 +135,23 @@ const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
       const rawBusNo = subPath.lane?.[0]?.busNo || subPath.lane?.[0]?.busID || '';
       const routeId  = normalizeBusRouteId(rawBusNo);
       const stopName = subPath.startName;
+      const nextName = getNextStopNameFromSubPath(subPath); // 방향 판단용 (필수)
       if (!routeId || !stopName) return [];
       const busKey = dayTypeToBusKey(day); // 'week' or 'holi'
-      return getBusDepartures(routeId, stopName, busKey);
+      // 1) 시작 정류장 우선
+      const timesStart = getBusDepartures(routeId, stopName, busKey, { nextName });
+      if (timesStart.length) return timesStart;
+
+      // 2) 시작 정류장이 비어 있을 때만 보조로 시도 (원치 않으면 제거)
+      const timesNext = nextName
+        ? getBusDepartures(routeId, stopName, busKey, { alsoTryNames: [nextName] })
+        : [];
+      if (timesNext.length) {
+        console.warn('⚠️ BUS timetable fallback to NEXT stop', {
+          routeId, start: stopName, next: nextName
+        });
+      }
+      return timesNext;
     }
     return [];
   }

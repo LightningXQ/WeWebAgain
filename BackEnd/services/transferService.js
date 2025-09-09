@@ -14,27 +14,39 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
     for (let i = 0; i < aMinutes.length; i++) {
       const aTime = aMinutes[i];
 
-      const sectionTime = fromSection?.sectionTime || 0;
-      const arrivalTime = aTime + sectionTime; // 출발 + 소요시간 → 도착 시각
+      const sectionTimeA = fromSection?.sectionTime || 0;
+      const sectionTimeB = toSection?.sectionTime || 0;
+
+      const arrivalTime = aTime + sectionTimeA; // 첫 구간 하차(=지금의 from)
 
       // ✅ A 도착시각 서비스 윈도우 체크 (05:00~24:00)
       if (!isWithinServiceMin(arrivalTime)) continue;
 
-      const bMatch =  bMinutes.find(bTime => bTime >= arrivalTime); // ✅ 도착 이후
+      const bMatch =  bMinutes.find(bTime => bTime >= arrivalTime); // ✅ 도착 이후 // 두 번째 탑승(=지금의 to)
       if (bMatch !== undefined) {
         const waitMinutes = bMatch - arrivalTime;
         // ✅ B 출발도 서비스 윈도우 안인지 확인 + 환승 최소 3분
         if (waitMinutes >= 3 && isWithinServiceMin(bMatch)) {
+          // ✅ 새로 계산할 4개 시각(모두 "HH:MM" 문자열)
+          const firstBoardAt   = minutesToTime(aTime);
+          const firstAlightAt  = minutesToTime(arrivalTime);            // 기존 from
+          const secondBoardAt  = minutesToTime(bMatch);                  // 기존 to
+          const secondAlightAt = minutesToTime(bMatch + sectionTimeB);   // 새로 추가
+
           results.push({
-            from: minutesToTime(arrivalTime), // 도착시각으로
-            to: minutesToTime(bMatch),
+            // (기존 값 유지 - 하위 로직 호환)
+            from: firstAlightAt,
+            to: secondBoardAt,
             waitMinutes,
             fromLine: fromSection?.subwayCode || null,
             fromStation: fromSection.endName,
             toLine: toSection?.subwayCode || null,
             toStation: toSection.startName,
-            fromBusNo: normalizeBusRouteId(fromSection?.busNo || fromSection?.subPath?.lane?.[0]?.busNo || ''),
-            toBusNo: normalizeBusRouteId(toSection?.busNo || toSection?.subPath?.lane?.[0]?.busNo || ''),
+            firstBoardAt,
+            firstAlightAt,
+            secondBoardAt,
+            secondAlightAt
+          
           });
         }
       }
@@ -78,6 +90,23 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
 
         console.log("🔁 dep1 count:", dep1.length);
         console.log("🔁 dep2 count:", dep2.length);
+
+        // ✅ [추가] 첫 번째 구간이 버스일 때, 시작/다음 정류장과 샘플 시간 확인
+        if (result[0].subPath?.trafficType === 2) {
+          const sp = result[0].subPath;
+          const list = sp?.passStopList?.stations?.map(s => s.stationName) || [];
+          const start = sp?.startName;
+          const idx = list.indexOf(start);
+          const next = (idx >= 0 && idx < list.length - 1) ? list[idx + 1] : null;
+
+          console.log('🚌 dep1(first bus) @START', {
+            route: normalizeBusRouteId(sp?.lane?.[0]?.busNo || sp?.lane?.[0]?.busID || ''),
+            start,
+            next,
+            count: dep1.length,
+            sample: dep1.slice(0, 5)
+          });
+        }
 
         const allWaitPairs = getAllMinWaitPairs(dep1, dep2, result[0], result[1]);
 
@@ -227,23 +256,25 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
             // ✅ t.from = 첫 구간 "하차시각"이므로,
             //    출발시각 = t.from - (첫 구간 이전 전체 + 첫 대중교통 구간 시간)
             const realFrom = subtractMinutesFromTime(
-              t.from,
+              t.from,  // t.from = firstAlightAt
               totalBeforeNonTransit + firstTransitDur
             );
   
             // ✅ t.to = 두 번째 구간 "출발시각"이므로,
             //    도착시각 = t.to + (두 번째 대중교통 구간 시간 + 이후 전체)
             const realTo = addMinutesToTime(
-              t.to,
+              t.to, // t.to = secondBoardAt
               totalAfterFromSecond
             );
   
             return {
-              from: t.from,
-              to: t.to,
               waitMinutes: t.waitMinutes, // (이미 getRootTransfers에서 도보시간 차감 완료)
-              realFrom,
-              realTo
+              realFrom, //출발시간
+              realTo, //도착시간
+              firstBoardAt: t.firstBoardAt, 
+              firstAlightAt: t.firstAlightAt,
+              secondBoardAt: t.secondBoardAt,
+              secondAlightAt: t.secondAlightAt
             };
           })
         ];
@@ -328,15 +359,13 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
   
                 transformedGroup.push({
                   transferNo: groupIdx + 1,
-                  from: newFrom,
-                  to: newTo,
                   waitMinutes,
-                  fromLine: t.fromLine,
-                  fromStation: t.fromStation,
-                  toLine: t.toLine,
-                  toStation: t.toStation,
                   realFrom,
-                  realTo            
+                  realTo,
+                  firstBoardAt: t.firstBoardAt,
+                  firstAlightAt: t.firstAlightAt,
+                  secondBoardAt: t.secondBoardAt,
+                  secondAlightAt: t.secondAlightAt
                 });
   
                 continue; // 분기 명확화 (다음 tIdx로)
@@ -344,15 +373,13 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
   
               transformedGroup.push({
                 transferNo: groupIdx + 1,
-                from: newFrom,
-                to: newTo,
                 waitMinutes,
-                fromLine: t.fromLine,
-                fromStation: t.fromStation,
-                toLine: t.toLine,
-                toStation: t.toStation,
                 realFrom,
-                realTo
+                realTo,
+                firstBoardAt: t.firstBoardAt,
+                firstAlightAt: t.firstAlightAt,
+                secondBoardAt: t.secondBoardAt,
+                secondAlightAt: t.secondAlightAt
               });
             }
   

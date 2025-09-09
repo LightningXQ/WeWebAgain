@@ -1,12 +1,14 @@
 // loader/busTimetable.js
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { normalizeStopName } = require('../utils/normalize');
 
 // 메모리 저장소: { [routeId]: { week: Map, holi: Map, sat: Map } }
 const busTimetables = Object.create(null);
 function ensureRoute(routeId) {
   if (!busTimetables[routeId]) {
-    busTimetables[routeId] = { week: new Map(), holi: new Map(), sat: new Map() };
+    const empty = () => ({ byStop: new Map(), byEdge: new Map() });
+    busTimetables[routeId] = { week: empty(), holi: empty(), sat: empty() };
   }
   return busTimetables[routeId];
 }
@@ -31,15 +33,35 @@ function parseLine(line) {
   return { stopName, times };
 }
 
+const mkEdgeKey = (a, b) => `${normalizeStopName(a)}→${normalizeStopName(b)}`;
+
 async function loadOneCSV(absPath, routeId, dayKey) {
   const raw = await fs.readFile(absPath, 'utf-8');
   const lines = raw.split(/\r?\n/).filter(Boolean);
-  for (let i = 1; i < lines.length; i++) { // 0행은 헤더
+  // 먼저 전행을 파싱해 배열로 만든 뒤, (현재, 다음) 쌍을 만든다
+  const recs = [];
+  for (let i = 1; i < lines.length; i++) {
     const rec = parseLine(lines[i]);
-    if (!rec) continue;
-    ensureRoute(routeId)[dayKey].set(rec.stopName, rec.times);
+    if (rec) recs.push(rec);
   }
-  console.log(`🚌 loaded ${path.basename(absPath)} → route=${routeId}, day=${dayKey}, stops=${ensureRoute(routeId)[dayKey].size}`);
+  const bucket = ensureRoute(routeId)[dayKey];
+  for (let i = 0; i < recs.length; i++) {
+    const cur  = recs[i];
+    const next = recs[i + 1]; // CSV 상 인접행 = 노선 상 '다음 정류장'(왕복도 자연스레 포함)
+
+    // byStop: 정규화/원본 둘 다 접근 가능하게 저장(덮어쓰기돼도 byEdge가 정답을 줄 것)
+    const keyRaw  = cur.stopName;
+    const keyNorm = normalizeStopName(keyRaw);
+    bucket.byStop.set(keyNorm, cur.times);
+    if (!bucket.byStop.has(keyRaw)) bucket.byStop.set(keyRaw, cur.times);
+
+    // byEdge: (현재정류장 → 다음정류장) 엣지 키로 저장 — 방향 포함!
+    if (next) {
+      bucket.byEdge.set(mkEdgeKey(cur.stopName, next.stopName), cur.times);
+    }
+  }
+  console.log(`🚌 loaded ${path.basename(absPath)} → route=${routeId}, day=${dayKey},
+  stops=${ensureRoute(routeId)[dayKey].byStop.size}, edges=${ensureRoute(routeId)[dayKey].byEdge.size}`);
 }
 
 async function loadBusCSVsFromDir(dirAbsPath) {
