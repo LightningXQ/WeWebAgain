@@ -31,6 +31,5 @@ router.post('/transfer-wait-times', async (req, res) => {
 router.get('/test', (req,res)=>{
   res.send("transferRouter test")
 })
-router.get()
 
 module.exports = router;
