@@ -28,5 +28,8 @@ router.post('/transfer-wait-times', async (req, res) => {
     return res.status(500).json({ error: '서버 에러', detail: err?.response?.data || err?.message || String(err) });
   }
 });
+router.get('/test', (req,res)=>{
+  res.send("transferRouter test")
+})
 
 module.exports = router;
