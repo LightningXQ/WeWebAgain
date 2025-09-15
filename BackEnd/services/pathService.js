@@ -13,7 +13,9 @@ function maskKey(k) {
   if (!k) return '(empty)';
   return `${k.slice(0, 4)}…${k.slice(-4)}`;
 }
-console.log('[pathService] ODsay key:', maskKey(ODSAY_API_KEY));
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[pathService] ODsay key:', maskKey(ODSAY_API_KEY));
+}
 
 /**
  * 경로 검색
@@ -27,7 +29,15 @@ async function searchPath({ sx, sy, ex, ey, pathIndex }) {
     if (v === undefined || v === null || v === '') {
       throw new Error(`searchPath: ${k} is required`);
     }
+    // 좌표 유효성 검증(숫자/NaN 차단)
+    if (!Number.isFinite(v)) {
+     const err = new Error(`searchPath: ${k} must be a finite number, got: ${v}`);
+     err.name = 'InvalidParameter';
+     err.param = k;
+     throw err;
+   }
   }
+  // 키 존재 여부
   if (!ODsayKeyOk()) {
     const e = new Error('ODSAY_API_KEY is missing');
     e.name = 'ConfigError';
@@ -51,7 +61,7 @@ async function searchPath({ sx, sy, ex, ey, pathIndex }) {
     });
 
     // HTTP 단계 에러
-    if (status !== 200) {
+    if (!(status >= 200 && status < 300)) {
       const err = new Error(`ODsay HTTP ${status}`);
       err.name = 'ODsayHttpError';
       err.httpStatus = status;
@@ -66,6 +76,7 @@ async function searchPath({ sx, sy, ex, ey, pathIndex }) {
       throw err;
     }
 
+    // 경로 목록 파싱/검증
     const pathList = data?.result?.path || [];
     if (!Array.isArray(pathList) || pathList.length === 0) {
       const err = new Error('No path found');
@@ -78,9 +89,10 @@ async function searchPath({ sx, sy, ex, ey, pathIndex }) {
     // - pathIndex 미지정(undefined/null)이면 0번
     // - 지정됐는데 정수가 아니거나 범위를 벗어나면 에러
     let idx;
-    if (pathIndex == null) {
+    if (pathIndex == null || pathIndex === '') {
       idx = 0;
     } else {
+      if (typeof pathIndex === 'string') pathIndex = Number(pathIndex);
       if (!Number.isInteger(pathIndex)) {
         const err = new Error(`pathIndex must be an integer, got: ${pathIndex}`);
         err.name = 'InvalidPathIndex';
@@ -101,6 +113,8 @@ async function searchPath({ sx, sy, ex, ey, pathIndex }) {
     }
 
 
+    // 선택 결과 구성 후 반환 
+    // subPath(세부 구간들), info.payment(요금), info.totalTime(총 소요시간) 추출
     const path = pathList[idx] || null;
     const subPaths = path?.subPath || [];
     const totalPayment = path?.info?.payment ?? null;
@@ -114,6 +128,7 @@ async function searchPath({ sx, sy, ex, ey, pathIndex }) {
   }
 }
 
+// 보조 함수 - 키 문자열이 비어 있지 않은지만 검사
 function ODsayKeyOk() {
   return typeof ODSAY_API_KEY === 'string' && ODSAY_API_KEY.length > 0;
 }
