@@ -5,6 +5,13 @@ const { isWithinServiceHHMM } = require('../utils/time');
 
 const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
 
+// Map 또는 일반 객체에서 키로 안전 조회
+function getFromMapOrObj(store, key) {
+  if (!store) return undefined;
+  if (store instanceof Map) return store.get(key);
+  return store[key];
+}
+
 // === [추가 시작] 공통/버스 헬퍼 4종 ===
 
   // ✅ ODCloud API 기반 부산지하철 전체 시간표 (1~4호선 전부) 가져오기
@@ -13,7 +20,7 @@ const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
     const serviceKey = OD_CLOUD_KEY; 
 
     const allData = [];
-    
+
     for (let page = 1; page <= 5; page++) {
       const url = `${baseUrl}?serviceKey=${encodeURIComponent(serviceKey)}&page=${page}&perPage=500`;
       try {
@@ -71,7 +78,7 @@ const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
     return times.sort();
   }
 
-   // 2) (지하철) subPath에서 '다음 역 이름'
+  // 2) (지하철) subPath에서 '다음 역 이름'
   function getNextStopNameFromSubPath(subPath) {
     const list = subPath?.passStopList?.stations?.map(s => s.stationName) || [];
     const start = subPath?.startName;
@@ -98,19 +105,19 @@ const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
     // 0) nextName이 있으면 (stop→next) 엣지로 먼저 조회 — 방향 확정
     if (nextName) {
       const edgeKey = `${normalizeStopName(stopName)}→${normalizeStopName(nextName)}`;
-      arr = byEdge.get(edgeKey) || null;
+      arr = getFromMapOrObj(byEdge, edgeKey) || null;
     }
 
     // 1) 엣지에서 못 찾으면 byStop로 폴백(정규화 우선)
     if (!arr) {
-      arr = byStop.get(norm) || byStop.get(raw) || null;
+      arr = getFromMapOrObj(byStop, norm) ?? getFromMapOrObj(byStop, raw) ?? null;
     }
 
     // 2) (선택) 보조 후보명들도 정규화해서 시도
     if (!arr && Array.isArray(alsoTryNames)) {
       for (const cand of alsoTryNames) {
         const cNorm = normalizeStopName(cand || '');
-        arr = byStop.get(cNorm) || byStop.get(cand) || null;
+        arr = getFromMapOrObj(byStop, cNorm) ?? getFromMapOrObj(byStop, cand) ?? null;
         if (arr) break;
       }
     }
