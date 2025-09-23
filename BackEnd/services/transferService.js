@@ -394,7 +394,7 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
     /* ===================== public service ===================== */
     async function computeTransferWaitTimes({ sx, sy, ex, ey, day, pathIndex }) {
     // 1) ODsay 경로 조회
-    const { path, subPaths, totalPayment, totalTime } =
+    const { subPaths, totalPayment, totalTime } =
         await searchPath({ sx, sy, ex, ey, pathIndex });
 
     // 2) 대중교통(1|2)만 추려 result 만들기
