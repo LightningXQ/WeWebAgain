@@ -184,7 +184,7 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
       const useFromAsKey2 = depMid.length < dep3.length;
 
       const unique1 = getUniqueMinWaits(filtered1, useFromAsKey1);
-      const unique2 = getUniqueMinWaits(filtered2, !useFromAsKey2);
+      const unique2 = getUniqueMinWaits(filtered2, useFromAsKey2);
 
       // 환승 2번 → [첫 환승 배열, 두 번째 환승 배열]
       allTransfers = [unique1, unique2];
@@ -565,13 +565,15 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
     // 7) groupedTransfers (UI용)
     let groupedTransfers = [];
     if (Array.isArray(transformed?.[0])) {
-        for (let i = 0; i < (transformed[0]?.length || 0); i++) {
-        groupedTransfers.push({
-            transfer1: transformed[0][i],
-            transfer2: transformed[1]?.[i] || null
-        });
-        }
-    } else if (Array.isArray(transformed)) {
+    const g1 = transformed[0] || [];
+    const g2 = transformed[1] || [];
+    const mapByFirstBoard = new Map(g2.map(x => [x.firstBoardAt, x]));
+    groupedTransfers = g1.map(x => ({
+      transfer1: x,
+      // g1.secondBoardAt(=중간 탑승)과 같은 g2.firstBoardAt을 매칭
+      transfer2: mapByFirstBoard.get(x.secondBoardAt) || null
+    }));
+  } else if (Array.isArray(transformed)) {
         for (let i = 0; i < transformed.length; i++) {
         groupedTransfers.push({ transfer1: transformed[i], transfer2: null });
         }
