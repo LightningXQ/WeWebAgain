@@ -1,14 +1,133 @@
 const { searchPath } = require('./pathService');            // ODsay 경로검색 래퍼(필요시)
 const { fetchDeparturesForSection } = require('./scheduleService');
-const { getSectionTimesBefore, getSectionTimesAfter, getWalkMinutesBetween, transpose } = require('../utils/pathHelpers');
-const { minutesToTime, timeToMinutes, isWithinServiceMin, addMinutesToTime, subtractMinutesFromTime } = require('../utils/time');
+const { getSectionTimesBefore, getSectionTimesAfter, getWalkMinutesBetween, transpose, idxLE, idxGE, getUniqueMinWaitsSorted } = require('../utils/pathHelpers');
+const { toMin, toTime, isWithinServiceMin, addMinutesToTime, subtractMinutesFromTime, SERVICE_START_MIN, SERVICE_END_MIN } = require('../utils/time');
 const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize');
+
+const MAX_TRANSFER_WAIT_MIN = 100; // 이 값 초과하는 환승은 버림
+
+// ===== 환승 버퍼 규칙 =====
+// - subway↔subway: 환승통로 3분 고정
+// - bus 포함: 실제 도보시간(getWalkMinutesBetween) 사용
+const FIXED_TRANSFER_CORRIDOR_MIN = 3;
+function sumActualWalkBetween(subPaths, idxA, idxB) {
+  if (!Array.isArray(subPaths) || idxA == null || idxB == null) return 0;
+  const [lo, hi] = idxA < idxB ? [idxA + 1, idxB] : [idxB + 1, idxA];
+  let total = 0;
+  for (let i = lo; i < hi; i++) {
+    const seg = subPaths[i];
+    // 실제 도보만 합산 (환승통로 time=0 같은 건 제외)
+    if (seg?.trafficType === 3 && Number(seg.sectionTime) > 0) {
+      total += Number(seg.sectionTime);
+    }
+  }
+  return total;
+}
+
+function computeTransferBufferMin(subPaths, idxA, idxB) {
+  const a = subPaths?.[idxA];
+  const b = subPaths?.[idxB];
+  const isSubway = (seg) => seg && seg.trafficType === 1;
+  // 지하철↔지하철은 3분 고정
+  if (isSubway(a) && isSubway(b)) return FIXED_TRANSFER_CORRIDOR_MIN;
+  // 버스가 끼면 실제 도보 세그먼트 합산 우선
+  const walkSum = sumActualWalkBetween(subPaths, idxA, idxB);
+  if (walkSum > 0) return walkSum;
+  // 그래도 0이면 기존 헬퍼로 보정(혹시라도 다른 데이터 구조인 경우)
+  const w = getWalkMinutesBetween(subPaths, idxA, idxB);
+  return Number.isFinite(w) ? w : 0;
+}
+
+// === dedupe helpers ===
+// 같은 키 값 그룹에서 waitMinutes가 가장 작은 것 남김(동률이면 to가 더 이른 것)
+function dedupeByKeyMin(arr, keyFn) {
+  const m = new Map();
+  for (const x of arr) {
+    const k = keyFn(x);
+    const ex = m.get(k);
+    if (!ex) { m.set(k, x); continue; }
+    if (x.waitMinutes < ex.waitMinutes) { m.set(k, x); continue; }
+    if (x.waitMinutes === ex.waitMinutes) {
+      // 시간 문자열 비교(사전식으로도 HH:MM이면 정상 동작)
+      const toX = x.to ?? '';
+      const toE = ex.to ?? '';
+      if (toX < toE) m.set(k, x);
+    }
+  }
+  return Array.from(m.values());
+}
+
+function sortByKeyTime(arr, keyFn) {
+  // keyFn이 HH:MM 반환이라면 toMin으로 안정적 정렬
+  return arr.slice().sort((p, q) => toMin(keyFn(p)) - toMin(keyFn(q)));
+}
+
+
+// ===== [중간구간 드라이버 빌더] =====
+// prev(구간1) → mid(구간2) @fromStation : driver = mid 출발(depMid_at_from)
+function buildPairs_Prev_to_Mid_using_MidDep(arrPrev_at_from, depMid_at_from, walk12_min){
+  const A = arrPrev_at_from.map(toMin).sort((a,b)=>a-b);
+  const D = depMid_at_from.map(toMin).sort((a,b)=>a-b);
+  const out = [];
+  for(const d of D){
+    const need = d - walk12_min;             // a ≤ d - walk
+    const i = idxLE(A, need);
+    if(i === -1) continue;
+    const a = A[i];
+    const wait = d - (a + walk12_min);
+    if(wait < 0) continue;
+    if (wait > MAX_TRANSFER_WAIT_MIN) continue; // ⬅️ 초과 후보 제거
+    out.push({
+      // UI/후속 계산 호환 필드들
+      from: toTime(d),            // (첫 환승에서) 기준 키: mid 출발
+      to:   toTime(d),
+      waitMinutes: wait,
+      firstBoardAt:  toTime(a - (0)),   // 실제 첫구간 탑승시는 transformT에서 보정
+      firstAlightAt: toTime(a),
+      secondBoardAt: toTime(d),
+      // secondAlightAt 은 transformT에서 보정 가능
+      fromLine: null, fromStation: null, toLine: null, toStation: null,
+    });
+  }
+  return out;
+}
+
+// mid(구간2) → next(구간3) @toStation : driver = mid 도착(arrMid_at_to)
+function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23_min){
+  const R = arrMid_at_to.map(toMin).sort((a,b)=>a-b);
+  const B = depNext_at_to.map(toMin).sort((a,b)=>a-b);
+  const out = [];
+  for(const r of R){
+    const earliest = r + walk23_min;         // b ≥ r + walk
+    const j = idxGE(B, earliest);
+    if(j === -1) continue;
+    const b = B[j];
+    const wait = b - earliest;
+    if(wait < 0) continue;
+    if (wait > MAX_TRANSFER_WAIT_MIN) continue; // ⬅️ 초과 후보 제거
+    out.push({
+      // UI/후속 계산 호환 필드들
+      from: toTime(r),            // (두번째 환승에서) 기준 키: mid 도착
+      to:   toTime(b),
+      waitMinutes: wait,
+      // 첫/두번째 탑승/하차는 transformT에서 보정
+      firstBoardAt:  null,
+      firstAlightAt: toTime(r),   // ✅ 3호선 '하차'(=도착 r) 시각을 채운다
+      secondBoardAt: toTime(b),
+      secondAlightAt: null,
+      fromLine: null, fromStation: null, toLine: null, toStation: null,
+      realFrom: toTime(r)         // 매칭 때 사용할 수 있도록 남김
+    });
+  }
+  return out;
+}
+
 
 //대기쌍 계산
 // A 열차 도착 직후 B 열차가 언제 있는지 찾아서 두 열차 간 대기시간 구함
   function getAllMinWaitPairs(scheduleA, scheduleB, fromSection, toSection) {
-    const aMinutes = scheduleA.map(timeToMinutes);
-    const bMinutes = scheduleB.map(timeToMinutes);
+    const aMinutes = scheduleA.map(toMin);
+    const bMinutes = scheduleB.map(toMin);
 
     const results = [];
     for (let i = 0; i < aMinutes.length; i++) {
@@ -28,10 +147,10 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
         // ✅ B 출발도 서비스 윈도우 안인지 확인 + 환승 최소 3분
         if (waitMinutes >= 3 && isWithinServiceMin(bMatch)) {
           // ✅ 새로 계산할 4개 시각(모두 "HH:MM" 문자열)
-          const firstBoardAt   = minutesToTime(aTime);
-          const firstAlightAt  = minutesToTime(arrivalTime);            // 기존 from
-          const secondBoardAt  = minutesToTime(bMatch);                  // 기존 to
-          const secondAlightAt = minutesToTime(bMatch + sectionTimeB);   // 새로 추가
+          const firstBoardAt   = toTime(aTime);
+          const firstAlightAt  = toTime(arrivalTime);            // 기존 from
+          const secondBoardAt  = toTime(bMatch);                 // 기존 to
+          const secondAlightAt = toTime(bMatch + sectionTimeB);   // 새로 추가
 
           results.push({
             // (기존 값 유지 - 하위 로직 호환)
@@ -116,20 +235,22 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
           .filter(x => x.p && (x.p.trafficType === 1 || x.p.trafficType === 2))
           .map(x => x.idx);
 
-        // 도보시간 반영: 짧은 환승 제거 + waitMinutes 차감
+        // 환승 버퍼 반영: subway↔subway=3분, 그 외(버스 포함)는 실도보
         let pairsFiltered = allWaitPairs;
         if (transitIdxs.length >= 2) {
-          const walkBufferMin = getWalkMinutesBetween(subPaths, transitIdxs[0], transitIdxs[1]);
-          console.log('🚶 walkBufferMin:', walkBufferMin);
+          const walkBufferMin = computeTransferBufferMin(subPaths, transitIdxs[0], transitIdxs[1]);
+          console.log('🚶 transferBufferMin:', walkBufferMin);
 
           // 1) 도보시간보다 짧으면 제거
           pairsFiltered = allWaitPairs.filter(p => p.waitMinutes >= walkBufferMin);
 
-          // 2) 도보시간을 빼고, 음수는 0으로 보정
+          // 2) 도보시간 차감(음수→0)
           pairsFiltered = pairsFiltered.map(p => ({
             ...p,
             waitMinutes: Math.max(0, p.waitMinutes - walkBufferMin)
           }));
+          // 3) 최대 대기시간 초과는 제거
+          pairsFiltered = pairsFiltered.filter(p => p.waitMinutes <= MAX_TRANSFER_WAIT_MIN);
         }
 
         const useFromAsKey = dep1.length < dep2.length;
@@ -138,53 +259,76 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
 
     } else if (result.length === 3) {
 
-      // ✅ 지하철/버스를 자동 구분해서 출발시각 배열을 가져옵니다.
-      //    (fetchDeparturesForSection 내부에서 trafficType에 따라
-      //     ODCloud(지하철) 또는 CSV(버스)에서 가져오도록 구현되어 있어야 합니다.)
-      const dep1 = await fetchDeparturesForSection(result[0].subPath, day);
-      const depMid = await fetchDeparturesForSection(result[1].subPath, day);
-      const dep3 = await fetchDeparturesForSection(result[2].subPath, day);
-      dep2 = dep3;   // ✅ 두 번째 환승의 "다음 탑승"은 3번째 구간 출발표를 봐야 함
+      // ✅ 3구간: 중간구간(두번째 구간)을 드라이버로 환승쌍 생성
+      // 스케줄 4종 준비: (연산 예시) 1호선 도착@from, 3호선 출발@from, 3호선 도착@to, 2호선 출발@to
+      // B) 만약 기존처럼 "출발표"만 리턴한다면(배열): 도착표는 sectionTime을 더해 구성한다.
+      const depPrev_at_prevStation = await fetchDeparturesForSection(result[0].subPath, day); // 구간1 출발표
+      const depMid_at_from         = await fetchDeparturesForSection(result[1].subPath, day); // 구간2 출발표(=from)
+      const depNext_at_to          = await fetchDeparturesForSection(result[2].subPath, day); // 구간3 출발표(=to)
+      dep2 = depNext_at_to; // 기존 호환: 두 번째 환승의 "다음 탑승"
 
-      // ✅ 방어: 하나라도 비어있으면 계산 불가
-      if (dep1.length === 0 || depMid.length === 0 || dep3.length === 0) {
-        console.error('❌ Some schedules missing (3-section).', {
-          dep1: dep1.length, depMid: depMid.length, dep3: dep3.length
-        });
+      if (!Array.isArray(depPrev_at_prevStation) || !Array.isArray(depMid_at_from) || !Array.isArray(depNext_at_to)) {
+        console.error('❌ schedule arrays missing or invalid');
         return { transfers: [], dep2: dep2 || [] };
       }
+      // 도착표 구성: arrPrev_at_from = depPrev + sectionTime(구간1)
+      const sec1 = result[0]?.sectionTime || 0;
+      const sec2 = result[1]?.sectionTime || 0;
+      const sec3 = result[2]?.sectionTime || 0;
+      const arrPrev_at_from = depPrev_at_prevStation.map(t => addMinutesToTime(t, sec1));
 
-      // ✅ 첫 번째 환승(구간1 → 구간2), 두 번째 환승(구간2 → 구간3)
-      const pairs1 = getAllMinWaitPairs(dep1, depMid, result[0], result[1]);
-      const pairs2 = getAllMinWaitPairs(depMid, dep3, result[1], result[2]);
+      // 중간구간 도착표는: arrMid_at_to = depMid@from + sec2 (단선/무정차 가정)
+      const arrMid_at_to = depMid_at_from.map(t => addMinutesToTime(t, sec2));
 
-      // 🔎 원본 subPaths에서 실제 대중교통 구간 인덱스 3개를 구함
+      // 원본 subPaths에서 실제 대중교통 구간 인덱스 3개
       const transitIdxs = (subPaths || [])
         .map((p, idx) => ({ p, idx }))
         .filter(x => x.p && (x.p.trafficType === 1 || x.p.trafficType === 2))
         .map(x => x.idx);
-
       const [idx0, idx1, idx2] = transitIdxs;
-      const walk1 = getWalkMinutesBetween(subPaths, idx0, idx1); // 1→2 사이 도보합
-      const walk2 = getWalkMinutesBetween(subPaths, idx1, idx2); // 2→3 사이 도보합
-      console.log('🚶 walk1(1→2):', walk1, '🚶 walk2(2→3):', walk2);
 
-      // 1) 도보시간보다 짧은 환승 쌍 제거 + 2) 도보시간 차감
-      let filtered1 = pairs1
-        .filter(p => p.waitMinutes >= walk1)
-        .map(p => ({ ...p, waitMinutes: Math.max(0, p.waitMinutes - walk1) }));
+      // 환승 도보시간(버퍼): subway↔subway=3분, 그 외(버스 포함)는 실도보
+      const walk1 = computeTransferBufferMin(subPaths, idx0, idx1); // 1→2
+      const walk2 = computeTransferBufferMin(subPaths, idx1, idx2); // 2→3
+      console.debug('🔎 transfer buffers', { walk1, walk2 });
 
-      let filtered2 = pairs2
-        .filter(p => p.waitMinutes >= walk2)
-        .map(p => ({ ...p, waitMinutes: Math.max(0, p.waitMinutes - walk2) }));
+      // 🔧 새 빌더로 두 환승쌍 생성(도보시간은 빌더에서 이미 반영하므로 이후 추가 차감 금지)
+      const pairs1 = buildPairs_Prev_to_Mid_using_MidDep(arrPrev_at_from, depMid_at_from, walk1);
+      const pairs2 = buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk2);
 
-      // 키 기준 중복 제거(더 짧은 대기만 남김)
-      // 첫 환승은 dep1 vs depMid, 두 번째 환승은 depMid vs dep3
-      const useFromAsKey1 = dep1.length < depMid.length;
-      const useFromAsKey2 = depMid.length < dep3.length;
+      const pairs1Capped = pairs1.filter(p => p.waitMinutes <= MAX_TRANSFER_WAIT_MIN);
+      const pairs2Capped = pairs2.filter(p => p.waitMinutes <= MAX_TRANSFER_WAIT_MIN);
 
-      const unique1 = getUniqueMinWaits(filtered1, useFromAsKey1);
-      const unique2 = getUniqueMinWaits(filtered2, useFromAsKey2);
+       // 🔧 필드 보정 (transformT / groupedTransfers와의 인터페이스 정합)
+      // - pairs1: 첫 구간 real board/second alight 채우기
+      const patched1 = pairs1Capped.map(p => ({
+        ...p,
+        // 첫 구간 실제 탑승 = 첫 구간 하차(firstAlightAt) - sec1
+        firstBoardAt: subtractMinutesFromTime(p.firstAlightAt, sec1),
+        // 두 번째 구간 하차 = 두 번째 구간 탑승(secondBoardAt) + sec2
+        secondAlightAt: addMinutesToTime(p.secondBoardAt, sec2),
+      }));
+
+      // - pairs2: 이 군의 '탑승키'를 firstBoardAt으로도 노출(그대로 b),
+      //           마지막 하차(secondAlightAt)를 sec3로 계산해서 transformT가 사용 가능하게
+      const patched2 = pairs2Capped.map(p => ({
+        ...p,
+        firstBoardAt: subtractMinutesFromTime(p.from, sec2),  // ✅ (d: 3호선 출발@연산)           
+        secondAlightAt: addMinutesToTime(p.secondBoardAt, sec3),
+      }));
+
+      // ✅ g1: a = 이전구간 도착시각 = firstAlightAt
+      const unique1 = sortByKeyTime(
+        dedupeByKeyMin(patched1, t => t.firstAlightAt),
+        t => t.firstAlightAt
+      );
+
+      // ✅ g2: b = 다음구간 출발시각 = secondBoardAt
+      const unique2 = sortByKeyTime(
+        dedupeByKeyMin(patched2, t => t.secondBoardAt),
+        t => t.secondBoardAt
+      );
+
 
       // 환승 2번 → [첫 환승 배열, 두 번째 환승 배열]
       allTransfers = [unique1, unique2];
@@ -292,7 +436,12 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
           const [idx0, idx1, idx2] = [transitIdxs[0], transitIdxs[1], transitIdxs[2]];
           const walkBuffer1 = getWalkMinutesBetween(subPaths, idx0, idx1) || 0; // (참고) 1→2
           const walkBuffer2 = getWalkMinutesBetween(subPaths, idx1, idx2) || 0; // 2→3
-  
+
+          // 첫 대중교통 이전(도보 등) 전체 시간 합 → 진짜 “여정 출발” 계산용
+          const totalBeforeNonTransit = (idx0 != null)
+            ? subPaths.slice(0, idx0).reduce((s, seg) => s + (seg.sectionTime || 0), 0)
+            : 0;
+
           let prevToArr = []; // 첫 번째 환승 그룹의 to 값들을 저장
   
           for (let groupIdx = 0; groupIdx < transfers.length; groupIdx++) {
@@ -312,22 +461,12 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
               let newFrom;
               let newTo;
               let waitMinutes = null;
-              let realFrom;
-              let realTo;
   
               if (groupIdx === 0) {
                 // 첫 번째 환승
-                const sectionTimesBefore = getSectionTimesBefore(subPaths, transferIndex);
-                const totalBefore = sectionTimesBefore.reduce((a, b) => a + b, 0);
-  
                 newFrom = t.from;
-                realFrom = subtractMinutesFromTime(newFrom, totalBefore);
-  
                 newTo = t.to;
-                realTo = t.to;
-  
                 prevToArr[tIdx] = t.to; // 그대로 유지
-  
                 waitMinutes = t.waitMinutes;  
   
               } else {
@@ -343,25 +482,21 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
                 const currentSection = subPaths[transferIndex + groupIdx];
                 const currentSectionTime = currentSection?.sectionTime || 0;
   
-                // (선택) 일관성 체크: prevTo + currentSectionTime 이 t.from 과 일치하는지 확인
-                const expectedFrom = addMinutesToTime(prevTo, currentSectionTime);
-                if (expectedFrom !== t.from) {
-                  console.warn(`⚠️ pair 불일치: expectedFrom=${expectedFrom}, pair.from=${t.from}`);
-                }
-  
                 // ✅ getRootTransfers에서 이미 walk2 반영된 pair(t)를 그대로 사용
                 newFrom = t.from;           // 두 번째 구간 하차시각(=세 번째 탑승 직전 시각)
                 newTo   = t.to;             // 세 번째 구간 탑승시각
                 waitMinutes = t.waitMinutes; // 이미 walk2 차감된 값 (이중 차감 금지)
-  
-                realFrom = newFrom;                     // 여정 상 환승 시작 시각
-                realTo   = addMinutesToTime(newTo, totalAfter); // 여정 최종 도착
-  
+                
+                // 🔧 transfer2(두 번째 환승): 마지막 하차 + '하차 이후' 도보만
+                // ✅ 마지막(3번째) 대중교통 구간 인덱스는 idx2. 그 '이후'만 합산 = 하차 이후 도보만
+                const afterWalkOnly = getSectionTimesAfter(subPaths, idx2)
+                  .reduce((a, b) => a + b, 0);
+                const finalArrival = addMinutesToTime(t.secondAlightAt, afterWalkOnly);
+
                 transformedGroup.push({
                   transferNo: groupIdx + 1,
                   waitMinutes,
-                  realFrom,
-                  realTo,
+                  realTo: finalArrival, // 최종 도착 = secondAlightAt + (하차 이후 도보만)
                   firstBoardAt: t.firstBoardAt,
                   firstAlightAt: t.firstAlightAt,
                   secondBoardAt: t.secondBoardAt,
@@ -371,23 +506,23 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
                 continue; // 분기 명확화 (다음 tIdx로)
               }
   
-              transformedGroup.push({
-                transferNo: groupIdx + 1,
-                waitMinutes,
-                realFrom,
-                realTo,
-                firstBoardAt: t.firstBoardAt,
-                firstAlightAt: t.firstAlightAt,
-                secondBoardAt: t.secondBoardAt,
-                secondAlightAt: t.secondAlightAt
-              });
-            }
-  
-            transformed.push(transformedGroup);
-          }
-  
-          return transformed;
-            
+               // 🔧 transfer1(첫 번째 환승): '여정 출발(realFrom)'만 넣기
+                transformedGroup.push({
+                  transferNo: groupIdx + 1,
+                  waitMinutes,
+                  // 여정 출발 = 첫 대중교통 탑승시각 - (첫 대중교통 이전 전체 구간 합)
+                  realFrom: subtractMinutesFromTime(t.firstBoardAt, totalBeforeNonTransit),
+                  firstBoardAt: t.firstBoardAt,
+                  firstAlightAt: t.firstAlightAt,
+                  secondBoardAt: t.secondBoardAt,
+                  secondAlightAt: t.secondAlightAt
+                });
+              } // ← 여기서 tIdx 루프를 닫는다
+
+              transformed.push(transformedGroup); // ← tIdx 루프 바깥에서 그룹을 한 번만 푸시
+            } // ← groupIdx 루프 닫기
+
+            return transformed; // ← case 2 반환      
         }
     }
 
@@ -446,18 +581,23 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
 
         const prev = subPaths[i - 1];
         const next = subPaths[i + 1];
-        const isTransferPath = (
-        p.trafficType === 3 &&
-        time === 0 &&
-        (prev && (prev.trafficType === 1 || prev.trafficType === 2)) &&
-        (next && (next.trafficType === 1 || next.trafficType === 2))
-        );
+        const isTransit = (t) => t && (t.trafficType === 1 || t.trafficType === 2);
+        const isBetweenTransit = isTransit(prev) && isTransit(next);
+        const isBothSubway = (prev?.trafficType === 1) && (next?.trafficType === 1);
+        const isTransferPath = (p.trafficType === 3) && isBetweenTransit;
 
         if (isTransferPath) {
-        name = '환승 통로';
-        time = '3분';
-        distance = null;
-        detail = { 설명: '역 간 환승 통로 이동' };
+          if (isBothSubway) {
+            name = '환승 통로';
+            time = '3분';                  // 지하철↔지하철은 고정 3분
+            distance = null;
+            detail = { 설명: '지하철 간 환승 통로(3분 고정)' };
+          } else {
+            // 버스 포함: 일반 도보(실도보 시간 그대로 표기)
+            name = '도보';
+            // time은 원래 segment의 p.sectionTime 그대로 유지
+            detail = { 설명: '대중교통 사이 도보 이동(실도보 적용)' };
+          }
         } else if (p.trafficType === 1) {
         name = '지하철';
         const detailPath = (p.passStopList?.stations || []).map(station => ({
@@ -562,22 +702,51 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
         waitMinutesArray = transformed.map(t => [t.waitMinutes]);
     }
 
+
     // 7) groupedTransfers (UI용)
     let groupedTransfers = [];
+
     if (Array.isArray(transformed?.[0])) {
-    const g1 = transformed[0] || [];
-    const g2 = transformed[1] || [];
-    const mapByFirstBoard = new Map(g2.map(x => [x.firstBoardAt, x]));
-    groupedTransfers = g1.map(x => ({
-      transfer1: x,
-      // g1.secondBoardAt(=중간 탑승)과 같은 g2.firstBoardAt을 매칭
-      transfer2: mapByFirstBoard.get(x.secondBoardAt) || null
-    }));
-  } else if (Array.isArray(transformed)) {
-        for (let i = 0; i < transformed.length; i++) {
-        groupedTransfers.push({ transfer1: transformed[i], transfer2: null });
-        }
+      const groupCount = transformed.length;
+
+      if (groupCount >= 2) {
+        // === 3구간(환승 2번) 케이스: g1 ↔ g2 페어링 ===
+        const g1 = transformed[0] || [];
+        const g2 = transformed[1] || [];
+
+        const mapByFirstBoard = new Map(g2.map(x => [x.firstBoardAt, x]));
+        const groupedTransfersRaw = g1.map(x => ({
+          transfer1: x,
+          transfer2: mapByFirstBoard.get(x.secondBoardAt) || null,
+        }));
+
+        // 한쪽이 null인 경우 제거
+        groupedTransfers = groupedTransfersRaw.filter(g => g.transfer1 && g.transfer2);
+
+      } else {
+        // === 2구간(환승 1번) 케이스: 페어링 없이 단일 그룹 ===
+        const g = transformed[0] || [];
+        groupedTransfers = g.map(t => ({ transfer1: t, transfer2: null }));
+      }
+
+    } else if (Array.isArray(transformed)) {
+      // 혹시 transformT가 평탄 배열로 준 경우 대비
+      groupedTransfers = transformed.map(t => ({ transfer1: t, transfer2: null }));
     }
+
+    // ✅ waitMinutesArray는:
+    //  - 단일 구간이면(이미 위에서 세팅됨) 유지
+    //  - 나머지(환승이 있는 경우)에만 groupedTransfers 기준으로 계산
+    if (!singleLegTimes || singleLegTimes.length === 0) {
+      waitMinutesArray = groupedTransfers.map(({ transfer1, transfer2 }) => {
+        const arr = [];
+        if (transfer1 && Number.isFinite(transfer1.waitMinutes)) arr.push(transfer1.waitMinutes);
+        if (transfer2 && Number.isFinite(transfer2.waitMinutes)) arr.push(transfer2.waitMinutes);
+        return arr;
+      });
+    }
+
+
 
     // 8) 최종 payload
     return {
@@ -598,5 +767,5 @@ const { normalizeBusRouteId, normalizeStopName } = require('../utils/normalize')
     };
     }
 
-    module.exports = { computeTransferWaitTimes };
+   module.exports = { computeTransferWaitTimes };
 

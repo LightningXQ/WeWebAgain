@@ -56,6 +56,29 @@
     );
   }
 
+  // ===== [이진탐색 헬퍼] =====
+  // arr: 오름차순 정렬된 "분(minute) 값" 배열 (Number[])
+  // 1) target 이하(≤)의 최댓값 인덱스 (없으면 -1)
+  function idxLE(arr, target){
+    let lo = 0, hi = arr.length - 1, ans = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (arr[mid] <= target) { ans = mid; lo = mid + 1; }
+      else { hi = mid - 1; }
+    }
+    return ans;
+  }
+  // 2) target 이상(≥)의 최솟값 인덱스 (없으면 -1)
+  function idxGE(arr, target){
+    let lo = 0, hi = arr.length - 1, ans = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (arr[mid] >= target) { ans = mid; hi = mid - 1; }
+      else { lo = mid + 1; }
+    }
+    return ans;
+  }
+
   /**
    * 같은 출발/도착 키 안에서 waitMinutes 최솟값만 남기고,
    * 반환 직전에 키 기준(시간) 정렬을 보장한다.
@@ -64,13 +87,15 @@
     const bestMap = new Map();
 
     for (const pair of (pairs || [])) {
+      if (!pair) continue;
       // --- [선택] 키 확장 버전 (노선/역까지 포함하고 싶으면 사용) ---
       // const key = useFromAsKey
       //   ? `${pair.from}|${pair.fromLine||''}|${(pair.fromStation||'').replace(/\s+/g,'')}`
       //   : `${pair.to}|${pair.toLine||''}|${(pair.toStation||'').replace(/\s+/g,'')}`;
 
       // --- [기본] 시간만 키로 사용 ---
-      const key = useFromAsKey ? pair.from : pair.to;
+      const key = useFromAsKey ? (pair.from || '') : (pair.to || '');
+      if (!key) continue; // 키가 비면 스킵
 
       const existing = bestMap.get(key);
       if (!existing || pair.waitMinutes < existing.waitMinutes) {
@@ -79,8 +104,10 @@
     }
 
     const out = Array.from(bestMap.values());
-    out.sort((a, b) => (useFromAsKey ? a.from.localeCompare(b.from)
-                                    : a.to.localeCompare(b.to)));
+    out.sort((a, b) =>
+      (useFromAsKey ? (a.from || '') : (a.to || ''))
+        .localeCompare(useFromAsKey ? (b.from || '') : (b.to || ''))
+    );
     return out;
   }
 
@@ -140,5 +167,7 @@
   // 새로 추가:
   getUniqueMinWaitsSorted,
   buildGroupedTransfersForThreeLegs,
+  idxLE,
+  idxGE,
   };
 
