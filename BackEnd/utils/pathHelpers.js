@@ -1,8 +1,37 @@
   
   const { addMinutesToTime } = require('./time');
+  const axios = require('axios');
+
   // 시간+노선+역”으로 키를 확장해서 정확도를 올릴 때 사용
   // const { normalizeStopName } = require('./normalize'); // 키 확장 쓰면 해제
   
+
+    function getWalkMinutesBetween(subPaths, fromTransitIdx, toTransitIdx, fixedMin=3) {
+    const lo = Math.min(fromTransitIdx, toTransitIdx);
+    const hi = Math.max(fromTransitIdx, toTransitIdx);
+    let sum = 0;
+
+    for (let i = lo + 1; i < hi; i++) {
+      const seg  = subPaths[i];
+      const prev = subPaths[i - 1];
+      const next = subPaths[i + 1];
+
+      // "환승 도보" 판정: 앞/뒤가 대중교통(1|2)이고, 현재 구간이 도보(3)
+      const isTransferWalk =
+        seg?.trafficType === 3 &&
+        prev && (prev.trafficType === 1 || prev.trafficType === 2) &&
+        next && (next.trafficType === 1 || next.trafficType === 2);
+
+      if (isTransferWalk) {
+        console.log(subPaths, fromTransitIdx, toTransitIdx)
+        return fixedMin;
+        //sum += seg.sectionTime || 0;
+      }
+    }
+    //return sum;
+    return 0;
+  }
+
   function getSectionTimesBefore(subPaths, transferIndex) {
     const times = [];
     for (let i = 0; i < transferIndex; i++) {
@@ -41,6 +70,7 @@
         next && (next.trafficType === 1 || next.trafficType === 2);
 
       if (isTransferWalk) {
+        console.log(subPaths, fromTransitIdx, toTransitIdx);
         return fixedMin;
         //sum += seg.sectionTime || 0;
       }
