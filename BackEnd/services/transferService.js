@@ -35,6 +35,7 @@ function computeTransferBufferMin(subPaths, idxA, idxB) {
   if (walkSum > 0) return walkSum;
   // 그래도 0이면 기존 헬퍼로 보정(혹시라도 다른 데이터 구조인 경우)
   const w = getWalkMinutesBetween(subPaths, idxA, idxB);
+  console.log(subPaths, idxA, idxB)
   return Number.isFinite(w) ? w : 0;
 }
 
@@ -435,7 +436,10 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
   
           const [idx0, idx1, idx2] = [transitIdxs[0], transitIdxs[1], transitIdxs[2]];
           const walkBuffer1 = getWalkMinutesBetween(subPaths, idx0, idx1) || 0; // (참고) 1→2
+          console.log(subPaths, idx0, idx1)
           const walkBuffer2 = getWalkMinutesBetween(subPaths, idx1, idx2) || 0; // 2→3
+          console.log(subPaths, idx0, idx1)
+
 
           // 첫 대중교통 이전(도보 등) 전체 시간 합 → 진짜 “여정 출발” 계산용
           const totalBeforeNonTransit = (idx0 != null)
