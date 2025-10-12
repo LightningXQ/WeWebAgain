@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
-const { computeTransferWaitTimes } = require('../services/transferService');
+const {getWalkTime} = require('../utils/pathHelpers')
+const { computeTransferWaitTimes} = require('../services/transferService');
 const { resolveDayType } = require('../utils/normalize');
 
 router.use(express.json());
@@ -28,8 +29,21 @@ router.post('/transfer-wait-times', async (req, res) => {
     return res.status(500).json({ error: '서버 에러', detail: err?.response?.data || err?.message || String(err) });
   }
 });
-router.get('/test', (req,res)=>{
-  res.send("transferRouter test")
-})
+router.post('/test', async (req,res)=>{
+try {
+    const { sx, sy, ex, ey} = req.body || {};
+
+    // 1) 필수값 검증
+    if (sx == null || sy == null || ex == null || ey == null) {
+      return res.status(400).json({ error: 'sx, sy, ex, ey는 필수입니다.' });
+    }
+    const result = await getWalkTime(sx,sy,ex,ey)
+    return res.json(result);
+
+
+  } catch (err) {
+    console.error('error:', err?.response?.data || err?.message || err);
+    return res.status(500).json({ error: '서버 에러', detail: err?.response?.data || err?.message || String(err) });
+  }})
 
 module.exports = router;

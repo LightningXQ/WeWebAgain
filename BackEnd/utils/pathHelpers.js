@@ -2,6 +2,7 @@
   const { addMinutesToTime } = require('./time');
   const axios = require('axios');
 
+  const axios = require('axios');
   // 시간+노선+역”으로 키를 확장해서 정확도를 올릴 때 사용
   // const { normalizeStopName } = require('./normalize'); // 키 확장 쓰면 해제
   
@@ -39,6 +40,61 @@
     }
     return times;
   }
+  async function getWalkTime(sx, sy, ex, ey) { //도보환승시간 계산
+  const TMAP_APP_KEY = 'WhGcxVojKO7g0CL8lD1NYgw2TiEf2r25qFNDUpOd'; 
+  const url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1';
+
+  try {
+    // 1. Tmap API에 POST 방식으로 요청을 보냅니다.
+    const response = await axios.post(
+      url,
+      // 2. 요청 시 본문(payload)에 포함될 데이터입니다.
+      {
+        startX: sx,           // 출발지 X좌표(경도)
+        startY: sy,           // 출발지 Y좌표(위도)
+        endX: ex,             // 도착지 X좌표(경도)
+        endY: ey,             // 도착지 Y좌표(위도)
+        reqCoordType: "WGS84GEO", // 좌표계 타입 설정
+        startName: "출발지",      // 출발지 이름
+        endName: "도착지"       // 도착지 이름
+      },
+      // 3. 요청 헤더에는 인증을 위한 API 키를 포함합니다.
+      {
+        headers: {
+          'appKey': TMAP_APP_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    // 4. API 응답 데이터에서 필요한 정보를 추출합니다.
+    //    (총 시간, 총 거리는 features 배열의 첫 번째 요소 안에 있습니다.)
+    const properties = response.data.features[0].properties;
+
+    const totalTimeInSeconds = properties.totalTime;       // 총 소요 시간 (초 단위)
+    const totalDistanceInMeters = properties.totalDistance; // 총 이동 거리 (미터 단위)
+
+    // 5. 추출한 정보를 콘솔에 알아보기 쉽게 출력합니다.
+    console.log(`\n🕒 총 소요 시간: ${totalTimeInSeconds}초 (${Math.ceil(totalTimeInSeconds / 60)}분)`);
+    console.log(`📏 총 이동 거리: ${totalDistanceInMeters}m`);
+    
+    // 6. 총 시간과 총 거리만 담은 새로운 JSON 객체를 반환합니다.
+    return {
+      totalTime: totalTimeInSeconds,
+      totalDistance: totalDistanceInMeters,
+    };
+
+  } catch (error) {
+    // 7. API 호출 중 에러가 발생하면 , 에러 메시지를 콘솔에 출력합니다.
+    console.error('❌ Tmap API 호출 오류:', error.response ? error.response.data : error.message);
+    
+    // 8. 에러 발생 시, null 값을 가진 기본 객체를 반환하여 프로그램 중단을 방지합니다.
+    return {
+      totalTime: null,
+      totalDistance: null,
+    };
+  }
+}
 
   function getSectionTimesAfter(subPaths, transferIndex) {
     const times = [];
@@ -199,5 +255,6 @@
   buildGroupedTransfersForThreeLegs,
   idxLE,
   idxGE,
+  getWalkTime
   };
 
