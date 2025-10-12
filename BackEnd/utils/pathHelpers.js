@@ -1,8 +1,6 @@
-  
   const { addMinutesToTime } = require('./time');
   const axios = require('axios');
 
-  const axios = require('axios');
   // 시간+노선+역”으로 키를 확장해서 정확도를 올릴 때 사용
   // const { normalizeStopName } = require('./normalize'); // 키 확장 쓰면 해제
   
