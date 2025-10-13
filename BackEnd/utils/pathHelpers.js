@@ -106,6 +106,10 @@
   // fromTransitIdx / toTransitIdx 는 subPaths 기준의 "대중교통 구간" 인덱스가 아니라
   // subPaths의 실제 인덱스를 넣어야 함 (ex: 버스 — 도보 — 지하철이면 버스/지하철의 subPaths 인덱스)
   
+
+  function getXYfromSubpath(subPath){
+
+  }
   //fixedMin = 3 -> 고정 환승통로시간
   function getWalkMinutesBetween(subPaths, fromTransitIdx, toTransitIdx, fixedMin=3) {
     const lo = Math.min(fromTransitIdx, toTransitIdx);
@@ -124,7 +128,6 @@
         next && (next.trafficType === 1 || next.trafficType === 2);
 
       if (isTransferWalk) {
-        console.log(subPaths, fromTransitIdx, toTransitIdx);
         return fixedMin;
         //sum += seg.sectionTime || 0;
       }
@@ -132,6 +135,9 @@
     //return sum;
     return 0;
   }
+
+
+
   //행렬을 행-열 뒤집어서 세로 → 가로로, 가로 → 세로로 바꿔준다
   function transpose(matrix) {
     if (matrix.length === 0) return [];
