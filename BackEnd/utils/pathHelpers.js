@@ -38,9 +38,37 @@
     }
     return times;
   }
-  async function getWalkTime(sx, sy, ex, ey) { //도보환승시간 계산
+
+
+  function getXyFromPath(path) {
+  // 1. trafficType이 2인 대중교통 구간만 필터링하여 새로운 배열을 만듭니다.
+  const transitSections = path.filter(section => section.trafficType === 2);
+
+  // 2. 대중교통 구간이 2개 미만이면(즉, 환승이 없으면) null을 반환합니다.
+  if (transitSections.length < 2) {
+    console.error("환승 정보를 추출할 수 없습니다. 대중교통 구간이 2개 미만입니다.");
+    return null;
+  }
+
+  // 3. 첫 번째 대중교통 구간과 두 번째 대중교통 구간의 정보를 가져옵니다.
+  const firstTransitSection = transitSections[0];
+  const secondTransitSection = transitSections[1];
+
+  // 4. 첫 번째 구간에서는 end 좌표를, 두 번째 구간에서는 start 좌표를 추출하여
+  //    하나의 객체로 조합한 후 반환합니다.
+  return {
+    sx: firstTransitSection.endX,
+    sy: firstTransitSection.endY,
+    ex: secondTransitSection.startX,
+    ey: secondTransitSection.startY,
+  };
+}
+
+  async function getWalkTime(path, fromTransitIdx, toTransitIdx) { //도보환승시간 계산
   const TMAP_APP_KEY = 'WhGcxVojKO7g0CL8lD1NYgw2TiEf2r25qFNDUpOd'; 
   const url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1';
+
+  const {sx, sy, ex, ey} = getXyFromPath(path);
 
   try {
     // 1. Tmap API에 POST 방식으로 요청을 보냅니다.
@@ -107,36 +135,8 @@
   // subPaths의 실제 인덱스를 넣어야 함 (ex: 버스 — 도보 — 지하철이면 버스/지하철의 subPaths 인덱스)
   
 
-  function getXYfromSubpath(subPath){
 
-  }
-  //fixedMin = 3 -> 고정 환승통로시간
-  function getWalkMinutesBetween(subPaths, fromTransitIdx, toTransitIdx, fixedMin=3) {
-    const lo = Math.min(fromTransitIdx, toTransitIdx);
-    const hi = Math.max(fromTransitIdx, toTransitIdx);
-    let sum = 0;
-
-    for (let i = lo + 1; i < hi; i++) {
-      const seg  = subPaths[i];
-      const prev = subPaths[i - 1];
-      const next = subPaths[i + 1];
-
-      // "환승 도보" 판정: 앞/뒤가 대중교통(1|2)이고, 현재 구간이 도보(3)
-      const isTransferWalk =
-        seg?.trafficType === 3 &&
-        prev && (prev.trafficType === 1 || prev.trafficType === 2) &&
-        next && (next.trafficType === 1 || next.trafficType === 2);
-
-      if (isTransferWalk) {
-        return fixedMin;
-        //sum += seg.sectionTime || 0;
-      }
-    }
-    //return sum;
-    return 0;
-  }
-
-
+  
 
   //행렬을 행-열 뒤집어서 세로 → 가로로, 가로 → 세로로 바꿔준다
   function transpose(matrix) {
