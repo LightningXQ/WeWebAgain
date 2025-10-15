@@ -32,9 +32,13 @@
 // }
 
 async function getWalkMinutesBetween(subPaths, fromTransitIdx, toTransitIdx) { //거리 반영한 도보환승시간
+    // console.log(subPaths)
     const {sx, sy, ex, ey} = await getXyFromPath(subPaths);
+    // console.log(sx, sy, ex, ey)
+    
     const walkTime = await getWalkTime(sx, sy, ex, ey)
-    console.log(subPaths)
+    console.log("walkTime : " +walkTime)
+   
     return walkTime;
 }
 
@@ -94,18 +98,9 @@ async function getWalkTime(sx, sy, ex, ey) { //도보환승시간 계산
   }
 }
 
-  function getSectionTimesBefore(subPaths, transferIndex) {
-    const times = [];
-    for (let i = 0; i < transferIndex; i++) {
-      times.push(subPaths[i].sectionTime || 0);
-    }
-    return times;
-  }
-
-
-  function getXyFromPath(path) {
+function getXyFromPath(path) {
   // 1. trafficType이 2인 대중교통 구간만 필터링하여 새로운 배열을 만듭니다.
-  const transitSections = path.filter(section => section.trafficType === 2);
+  const transitSections = path.filter(section => section.trafficType === 1 || section.trafficType === 2);
 
   // 2. 대중교통 구간이 2개 미만이면(즉, 환승이 없으면) null을 반환합니다.
   if (transitSections.length < 2) {
@@ -126,8 +121,13 @@ async function getWalkTime(sx, sy, ex, ey) { //도보환승시간 계산
     ey: secondTransitSection.startY,
   };
 }
-
-
+function getSectionTimesBefore(subPaths, transferIndex) {
+    const times = [];
+    for (let i = 0; i < transferIndex; i++) {
+      times.push(subPaths[i].sectionTime || 0);
+    }
+    return times;
+}
 
   function getSectionTimesAfter(subPaths, transferIndex) {
     const times = [];
