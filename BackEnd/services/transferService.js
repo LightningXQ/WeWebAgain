@@ -207,6 +207,8 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
         console.log("🔁 dep1 count:", dep1.length);
         console.log("🔁 dep2 count:", dep2.length);
 
+         console.log("🚇 dep2(지하철) sample:", dep2.slice(0,5));
+
         // ✅ [추가] 첫 번째 구간이 버스일 때, 시작/다음 정류장과 샘플 시간 확인
         if (result[0].subPath?.trafficType === 2) {
           const sp = result[0].subPath;

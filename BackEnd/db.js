@@ -5,7 +5,7 @@ const db = mysql.createConnection({
   host: 'newnew.c1sso6a8y8aj.ap-northeast-2.rds.amazonaws.com',            // 중요! 컨테이너 이름
   user: 'admin',
   password: '87654321',
-  database: 'webagain'
+  database: 'webagain_safe'
 });
 
 // db.connect(err => {
