@@ -207,7 +207,13 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
         console.log("🔁 dep1 count:", dep1.length);
         console.log("🔁 dep2 count:", dep2.length);
 
-         console.log("🚇 dep2(지하철) sample:", dep2.slice(0,5));
+        console.log("🚇 dep2(지하철) sample:", dep2.slice(0,5));
+
+        // dep1, dep2 받은 직후에 추가
+        const ok1 = Array.isArray(dep1) && dep1.length > 0;
+        const ok2 = Array.isArray(dep2) && dep2.length > 0;
+        const timetableCandidate = ok1 && ok2;
+
 
         // ✅ [추가] 첫 번째 구간이 버스일 때, 시작/다음 정류장과 샘플 시간 확인
         if (result[0].subPath?.trafficType === 2) {
@@ -255,6 +261,7 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
         const useFromAsKey = dep1.length < dep2.length;
         const uniqueWaitPairs = getUniqueMinWaits(pairsFiltered, useFromAsKey);
         allTransfers = uniqueWaitPairs;
+        return { transfers: allTransfers, dep2: dep2 || [], timetableCandidate };
 
     } else if (result.length === 3) {
 
@@ -266,9 +273,14 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
       const depNext_at_to          = await fetchDeparturesForSection(result[2].subPath, day); // 구간3 출발표(=to)
       dep2 = depNext_at_to; // 기존 호환: 두 번째 환승의 "다음 탑승"
 
+        const ok0 = Array.isArray(depPrev_at_prevStation) && depPrev_at_prevStation.length > 0;
+        const ok1 = Array.isArray(depMid_at_from) && depMid_at_from.length > 0;
+        const ok2 = Array.isArray(depNext_at_to) && depNext_at_to.length > 0;
+        const timetableCandidate = ok0 && ok1 && ok2;
+
       if (!Array.isArray(depPrev_at_prevStation) || !Array.isArray(depMid_at_from) || !Array.isArray(depNext_at_to)) {
         console.error('❌ schedule arrays missing or invalid');
-        return { transfers: [], dep2: dep2 || [] };
+        return { transfers: [], dep2: dep2 || [], timetableCandidate: false };
       }
       // 도착표 구성: arrPrev_at_from = depPrev + sectionTime(구간1)
       const sec1 = result[0]?.sectionTime || 0;
@@ -331,12 +343,29 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
 
       // 환승 2번 → [첫 환승 배열, 두 번째 환승 배열]
       allTransfers = [unique1, unique2];
+      return { transfers: allTransfers, dep2: dep2 || [], timetableCandidate };
+
     }
 
-    return {
-      transfers: allTransfers,
-      dep2: dep2 || []
-    };
+    // ✅ A-5) 함수 마지막 기본 반환에도 플래그 기본값 포함(공통 fallback)
+    const fetchStatus = []; // 정보를 못 모았을 때의 디폴트
+    const timetableCandidate =
+    Array.isArray(allTransfers) &&
+    (
+        // 2구간(평면 배열) 케이스
+        (!Array.isArray(allTransfers[0]) && allTransfers.length > 0)
+        ||
+        // 3구간([[], []]) 케이스: 어느 그룹이라도 비어있지 않으면 true
+        (Array.isArray(allTransfers[0]) && ((allTransfers[0]?.length || 0) > 0 || (allTransfers[1]?.length || 0) > 0))
+    );
+
+    return {
+    transfers: allTransfers,
+    dep2: dep2 || [],
+    fetchStatus,
+    timetableCandidate
+    };
+
   }
 
   // ===== [단일 구간 시간 계산 유틸] =====
@@ -582,7 +611,7 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
 
 
     // 3) 환승쌍 계산 & 변환
-    const { transfers, dep2 } = await getRootTransfers(result, day, subPaths);
+    const { transfers, dep2, timetableCandidate = true } = await getRootTransfers(result, day, subPaths);
     const transformed = transformT(transfers || [], subPaths || [], transferIndex, dep2 || []);
 
     // 4) 단일 구간(대중교통이 1개뿐)인 경우 처리
@@ -697,6 +726,28 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
         .map(r => `${r.이동수단} ${typeof r.이동시간 === 'string' ? r.이동시간 : `${r.이동시간}`}`)
         .join(' → ');
     const summaryWithFare = totalPayment ? `${summary} (총 요금 ${totalPayment}원)` : summary;
+
+    // 시간표가 비었으면: summary는 유지, result는 빈 배열 + 안내 메시지
+    if (!timetableCandidate) {
+    return {
+        summary: summaryWithFare,
+        result: {
+        경로: {
+            '이동수단': [],
+            '출발 시간': [],
+            '도착 시간': [],
+            '환승 대기 시간': [],
+            '총 소요 시간': totalTime || null,
+            '요금': totalPayment || null,
+            '세부 경로': routeDetails,
+            '메시지': '현재 시간표 데이터가 없어 상세 시간은 잠시 후 다시 시도해주세요.'
+        }
+        },
+        groupedTransfers: [],
+        singleLegTimes: null,
+        meta: { timetableReady: false }
+    };
+    }
 
     const vehicleArray = routeDetails.map(r => r.이동수단);
 

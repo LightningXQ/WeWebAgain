@@ -3,6 +3,113 @@ const { busTimetables } = require('../loader/bustimetable');
 const { normalizeBusRouteId, normalizeLineName, normalizeStopName, dayTypeToBusKey, dayTypeToSubwayKey } = require('../utils/normalize');
 const { isWithinServiceHHMM } = require('../utils/time');
 
+// 데이터 소스 스위치: 기본값 'odsay'
+const useODsay = (process.env.SUBWAY_SOURCE || 'odsay').toLowerCase() === 'odsay';
+
+// HH:MM 형태로 보정 (예: '5:3' → '05:03', '5:03:00' → '05:03')
+function toHHMM(s) {
+  const str = String(s || '').trim();
+  const m = str.match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/); // H:M, H:MM, HH:MM[:SS]
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isInteger(h) || !Number.isInteger(min)) return null;
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+}
+
+
+
+// ODsay (신) 지하철역 전체 시간표 -> HH:MM 배열 반환
+async function getSubwayScheduleByODsay(stationID, wayCode, day) {
+  const appKey = (process.env.ODSAY_API_KEY || '').trim();
+  if (!appKey) throw new Error('Missing ODSAY_API_KEY');
+
+  // 입력 day -> ODsay weekKey('weekday'|'sat'|'sun')
+  function toODsayWeekKey(d) {
+    const s = String((typeof d === 'object' && (d.subway || d.bus)) ? (d.subway || d.bus) : d)
+      .trim().toLowerCase();
+    if (['평일','weekday','week','wd'].includes(s)) return 'weekday';
+    if (['토','토요일','sat','saturday'].includes(s)) return 'sat';
+    return 'sun'; // 일요일/공휴일
+  }
+  const weekKey = toODsayWeekKey(day);
+
+  const params = new URLSearchParams({
+    apiKey: appKey,           // URLSearchParams가 자동 인코딩
+    stationID: String(stationID),
+    lang: '0',
+  });
+  if (wayCode === 1 || wayCode === 2) params.set('wayCode', String(wayCode));
+
+  const url = `https://api.odsay.com/v1/api/searchSubwaySchedule?${params.toString()}`;
+  let data;
+  try {
+    ({ data } = await axios.get(url));
+  } catch (e) {
+    console.error('❌ ODsay 요청 실패:', e?.response?.status, e?.message);
+    return [];
+  }
+
+  // (신) API: 평일/토/일 섹션 이름 (일반적 명칭)
+  const nodeMap = { weekday: 'weekdaySchedule', sat: 'saturdaySchedule', sun: 'sundaySchedule' };
+  let dayNode = data?.result?.[nodeMap[weekKey]];
+  if (!dayNode && weekKey === 'sun') {
+    // 어떤 계정은 휴일을 holidaySchedule로 내려줌
+    dayNode = data?.result?.holidaySchedule || null;
+  }
+  if (!dayNode) {
+    console.warn(`⚠️ ODsay 요일 섹션 없음: weekKey='${weekKey}' node='${nodeMap[weekKey]}'`);
+    return [];
+  }
+
+  const collect = (dir /* 'up'|'down' */) => {
+    const node = dayNode?.[dir];
+    if (!node) return [];
+
+    // 케이스 1) 예전(또는 일부 계정) 구조: { time: [ { Idx, list }, ... ] }
+    if (Array.isArray(node.time)) {
+      const out = [];
+      for (const b of node.time) {
+        const h = Number(b?.Idx);
+        if (!Number.isFinite(h)) continue;
+        const hh = ((h % 24) + 24) % 24; // 24→00, 25→01
+        const mmList = String(b?.list || '').split(',').map(s => s.trim()).filter(Boolean);
+        for (const mm of mmList) out.push(`${String(hh).padStart(2,'0')}:${mm.padStart(2,'0')}`);
+      }
+      return out;
+    }
+
+    // 케이스 2) 새 구조: up/down 자체가 배열
+    if (Array.isArray(node)) {
+      // 2-1) ["05:03","05:15", ...] 식 문자열 배열
+      if (typeof node[0] === 'string') return node.slice();
+
+      // 2-2) [{ time: "05:03" }, ...] 식 객체 배열
+      if (node[0] && typeof node[0] === 'object') {
+        const out = [];
+        for (const item of node) {
+          const t = item.time || item.hhmm || item.departureTime || item.t; // 방어적으로 여러 키 시도
+          if (t) out.push(String(t));
+        }
+        return out;
+      }
+    }
+
+    // 알 수 없는 형태면 빈 배열
+    return [];
+  };
+
+  const times = [...collect('up'), ...collect('down')]
+    .map(toHHMM)
+    .filter(Boolean)
+    .sort();
+
+  // console.info(`[ODsay] stationID=${stationID} wayCode=${wayCode} week=${weekKey} count=${times.length}`);
+  return times;
+}
+
+
 const OD_CLOUD_KEY = (process.env.OD_CLOUD_KEY || '').trim();
 
 // Map 또는 일반 객체에서 키로 안전 조회
@@ -34,11 +141,24 @@ function getFromMapOrObj(store, key) {
       }
     }
 
-    // 노선명 / 요일 일치하는 데이터만 추출
-    const filtered = allData.filter(train =>
-      normalizeLineName(train.노선명) === normalizeLineName(lineName) &&
-      train.요일구분 === subwayKey
-    );
+    function buildAltDayKeys(dayKey) {
+      if (dayKey === '토요일') return ['토요일', '공휴일'];   // 주말 합본 데이터 대비
+      if (dayKey === '공휴일') return ['공휴일', '토요일'];   // 반대 케이스도
+      return [dayKey];                                       // 평일은 그대로
+    }
+    let filtered = [];
+    for (const key of buildAltDayKeys(subwayKey)) {
+      filtered = allData.filter(train =>
+        normalizeLineName(train.노선명) === normalizeLineName(lineName) &&
+        train.요일구분 === key
+      );
+      if (filtered.length) {
+        if (key !== subwayKey) {
+          console.warn(`⚠️ ODCloud day fallback used: requested='${subwayKey}' -> used='${key}'`);
+        }
+        break;
+      }
+    }
 
     // 시작역/다음역 이름을 정규화해서 비교
     const wantStart = normalizeStopName(stationName);
@@ -67,8 +187,11 @@ function getFromMapOrObj(store, key) {
       if (!isNextOk) continue;
 
       // 출발시각이 있으면 우선 사용, 없으면 도착시각으로 대체
-      const t = stationTimesDep[idx] || stationTimesArr[idx];
+      const tRaw = stationTimesDep[idx] || stationTimesArr[idx];
+      const t = toHHMM(tRaw);           // ✅ 지하철에만 HH:MM 보정
       if (!t) continue;
+
+      console.info(`[subway] ${lineName} ${stationName}→${nextStationName} push='${tRaw}' -> '${t}'`);
 
       if (isWithinServiceHHMM(t)) {
         times.push(t);
@@ -130,14 +253,24 @@ function getFromMapOrObj(store, key) {
   async function fetchDeparturesForSection(subPath, day) {
     if (subPath.trafficType === 1) {
       // 🚇 지하철
-      const station = subPath.startName;
-      const nextStation = getNextStopNameFromSubPath(subPath);
-      const lineName = subPath.lane?.[0]?.name;
-      if (!station || !nextStation || !lineName) return [];
-      const subwayKey = dayTypeToSubwayKey(day);
-      return await getSubwayScheduleByODCloud(station, nextStation, lineName, subwayKey);
-    } else if (subPath.trafficType === 2) {
+      if (useODsay) {
+        const stationID = subPath.startID || subPath.startStationID || subPath.stationID;
+        const wayCode   = subPath.wayCode; // 1: 상행, 2: 하행
+        if (!stationID) return [];
+        return await getSubwayScheduleByODsay(stationID, wayCode, day);
+      }
+
+        // (폴백) ODCloud 사용 경로
+        const station = subPath.startName;
+        const nextStation = getNextStopNameFromSubPath(subPath);
+        const lineName = subPath.lane?.[0]?.name;
+        if (!station || !nextStation || !lineName) return [];
+        const subwayKeyRaw = dayTypeToSubwayKey(day);
+        const subwayKey    = (subwayKeyRaw === '휴일') ? '공휴일' : subwayKeyRaw;
+        return await getSubwayScheduleByODCloud(station, nextStation, lineName, subwayKey);
       // 🚌 버스 (CSV 파일명 routeId = busNo 권장)
+      } else if (subPath.trafficType === 2) {
+         // 🚌 버스 (CSV 파일명 routeId = busNo 권장)
       const rawBusNo = subPath.lane?.[0]?.busNo || subPath.lane?.[0]?.busID || '';
       const routeId  = normalizeBusRouteId(rawBusNo);
       const stopName = subPath.startName;
