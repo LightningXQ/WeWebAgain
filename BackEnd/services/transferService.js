@@ -273,7 +273,7 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
       const depMid_at_from         = await fetchDeparturesForSection(result[1].subPath, day); // 구간2 출발표(=from)
       const depNext_at_to          = await fetchDeparturesForSection(result[2].subPath, day); // 구간3 출발표(=to)
       dep2 = depNext_at_to; // 기존 호환: 두 번째 환승의 "다음 탑승"
-
+        
         const ok0 = Array.isArray(depPrev_at_prevStation) && depPrev_at_prevStation.length > 0;
         const ok1 = Array.isArray(depMid_at_from) && depMid_at_from.length > 0;
         const ok2 = Array.isArray(depNext_at_to) && depNext_at_to.length > 0;
