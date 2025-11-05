@@ -729,24 +729,28 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
 
     // 시간표가 비었으면: summary는 유지, result는 빈 배열 + 안내 메시지
     if (!timetableCandidate) {
-    return {
-        summary: summaryWithFare,
-        result: {
-        경로: {
-            '이동수단': [],
-            '출발 시간': [],
-            '도착 시간': [],
-            '환승 대기 시간': [],
-            '총 소요 시간': totalTime || null,
-            '요금': totalPayment || null,
-            '세부 경로': routeDetails,
-            '메시지': '현재 시간표 데이터가 없어 상세 시간은 잠시 후 다시 시도해주세요.'
-        }
-        },
-        groupedTransfers: [],
-        singleLegTimes: null,
-        meta: { timetableReady: false }
-    };
+        const hasSingle = Array.isArray(singleLegTimes) && singleLegTimes.length > 0;
+        if (!timetableCandidate && !hasSingle) {
+            return {
+                
+                summary: summaryWithFare,
+                result: {
+                경로: {
+                    '이동수단': [],
+                    '출발 시간': [],
+                    '도착 시간': [],
+                    '환승 대기 시간': [],
+                    '총 소요 시간': totalTime || null,
+                    '요금': totalPayment || null,
+                    '세부 경로': routeDetails,
+                    '메시지': '현재 시간표 데이터가 없어 상세 시간은 잠시 후 다시 시도해주세요.'
+                }
+                },
+                groupedTransfers: [],
+                singleLegTimes: null,
+                meta: { timetableReady: false }
+            };
+        }    
     }
 
     const vehicleArray = routeDetails.map(r => r.이동수단);

@@ -33,7 +33,9 @@
 
 async function getWalkMinutesBetween(subPaths, fromTransitIdx, toTransitIdx) { //거리 반영한 도보환승시간
     // console.log(subPaths)
-    const {sx, sy, ex, ey} = await getXyFromPath(subPaths);
+    const coords = await getXyFromPath(subPaths);
+    if (!coords) return 0;                 // ← 환승 없음/좌표 없음 → 0(초)로 안전 반환
+    const { sx, sy, ex, ey } = coords;
     // console.log(sx, sy, ex, ey)
     
     const walkTime = await getWalkTime(sx, sy, ex, ey)
@@ -91,14 +93,12 @@ async function getWalkTime(sx, sy, ex, ey) { //도보환승시간 계산
     console.error('❌ Tmap API 호출 오류:', error.response ? error.response.data : error.message);
     
     // 8. 에러 발생 시, null 값을 가진 기본 객체를 반환하여 프로그램 중단을 방지합니다.
-    return {
-      totalTime: null,
-      totalDistance: null,
-    };
+    return 0;  // ← 타입 꼬임 방지: 항상 '초' 숫자 반환
   }
 }
 
 function getXyFromPath(path) {
+  if (!Array.isArray(path)) return null;  // ← 잘못된 입력 방어
   // 1. trafficType이 2인 대중교통 구간만 필터링하여 새로운 배열을 만듭니다.
   const transitSections = path.filter(section => section.trafficType === 1 || section.trafficType === 2);
 
