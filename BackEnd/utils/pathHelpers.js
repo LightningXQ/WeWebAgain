@@ -31,9 +31,8 @@
 //     return 0;
 // }
 
-async function getWalkMinutesBetween(subPaths, fromTransitIdx, toTransitIdx) { //거리 반영한 도보환승시간
-    // console.log(subPaths)
-    const coords = await getXyFromPath(subPaths);
+async function getWalkMinutesBetween(subPaths, fromTransitIdx, toTransitIdx) { // 거리 반영한 도보환승시간
+    const coords = await getXyFromPath(subPaths, fromTransitIdx, toTransitIdx);
     if (!coords) return 0;                 // ← 환승 없음/좌표 없음 → 0(초)로 안전 반환
     const { sx, sy, ex, ey } = coords;
     // console.log(sx, sy, ex, ey)
@@ -97,30 +96,30 @@ async function getWalkTime(sx, sy, ex, ey) { //도보환승시간 계산
   }
 }
 
-function getXyFromPath(path) {
-  if (!Array.isArray(path)) return null;  // ← 잘못된 입력 방어
-  // 1. trafficType이 2인 대중교통 구간만 필터링하여 새로운 배열을 만듭니다.
-  const transitSections = path.filter(section => section.trafficType === 1 || section.trafficType === 2);
+function getXyFromPath(path, fromTransitIdx, toTransitIdx) {
+   if (!Array.isArray(path)) return null;
+    if (
+      fromTransitIdx == null || toTransitIdx == null ||
+      fromTransitIdx < 0 || toTransitIdx < 0 ||
+      fromTransitIdx >= path.length || toTransitIdx >= path.length
+    ) return null;
 
-  // 2. 대중교통 구간이 2개 미만이면(즉, 환승이 없으면) null을 반환합니다.
-  if (transitSections.length < 2) {
-    console.error("환승 정보를 추출할 수 없습니다. 대중교통 구간이 2개 미만입니다.");
-    return null;
+    const fromSeg = path[fromTransitIdx];
+    const toSeg   = path[toTransitIdx];
+    if (!fromSeg || !toSeg) return null;
+    // 둘 다 대중교통(1|2)인지 확인
+    const isTransit = seg => seg && (seg.trafficType === 1 || seg.trafficType === 2);
+    if (!isTransit(fromSeg) || !isTransit(toSeg)) return null;
+
+    // 환승은 "첫 구간 하차 지점" → "다음 구간 탑승 지점" 사이의 도보
+    const sx = Number(fromSeg.endX);
+    const sy = Number(fromSeg.endY);
+    const ex = Number(toSeg.startX);
+    const ey = Number(toSeg.startY);
+    if (![sx, sy, ex, ey].every(v => Number.isFinite(v))) return null;
+    return { sx, sy, ex, ey };
   }
 
-  // 3. 첫 번째 대중교통 구간과 두 번째 대중교통 구간의 정보를 가져옵니다.
-  const firstTransitSection = transitSections[0];
-  const secondTransitSection = transitSections[1];
-
-  // 4. 첫 번째 구간에서는 end 좌표를, 두 번째 구간에서는 start 좌표를 추출하여
-  //    하나의 객체로 조합한 후 반환합니다.
-  return {
-    sx: firstTransitSection.endX,
-    sy: firstTransitSection.endY,
-    ex: secondTransitSection.startX,
-    ey: secondTransitSection.startY,
-  };
-}
 function getSectionTimesBefore(subPaths, transferIndex) {
     const times = [];
     for (let i = 0; i < transferIndex; i++) {

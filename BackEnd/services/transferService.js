@@ -25,14 +25,15 @@ function sumActualWalkBetween(subPaths, idxA, idxB) {
 }
 
 // [수정됨] computeTransferBufferMin 함수: 모든 환승에 실제 도보 시간을 적용하도록 통일
-function computeTransferBufferMin(subPaths, idxA, idxB) {
-  // 실제 도보 세그먼트 합산을 우선으로 합니다.
-  const walkSum = sumActualWalkBetween(subPaths, idxA, idxB);
-  if (walkSum > 0) return walkSum;
+async function computeTransferBufferMin(subPaths, idxA, idxB) {
+    // 1) Tmap 기반 '실제 도보'를 우선 적용 (표시/요약과 동일한 기준)
+    const sec = await getWalkMinutesBetween(subPaths, idxA, idxB); // 초
+    const tmapMin = Math.max(0, Math.ceil(sec / 60));              // 분(올림)
+    if (Number.isFinite(tmapMin) && tmapMin > 0) return tmapMin;
 
-  // 도보 세그먼트가 없는 경우(데이터 구조가 다른 경우 대비) getWalkMinutesBetween으로 보정합니다.
-  const w = getWalkMinutesBetween(subPaths, idxA, idxB);
-  return Number.isFinite(w) ? w : 0;
+    // 2) 실패/0초면, ODsay 섹션타임(실제 도보 세그먼트 합)으로 폴백
+    const sumMin = sumActualWalkBetween(subPaths, idxA, idxB);
+    return Number.isFinite(sumMin) ? sumMin : 0;
 }
 
 // === dedupe helpers ===
@@ -243,7 +244,7 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
         // 환승 버퍼 반영
         let pairsFiltered = allWaitPairs;
         if (transitIdxs.length >= 2) {
-          const walkBufferMin = computeTransferBufferMin(subPaths, transitIdxs[0], transitIdxs[1]);
+          const walkBufferMin = await computeTransferBufferMin(subPaths, transitIdxs[0], transitIdxs[1]);
           console.log('🚶 transferBufferMin:', walkBufferMin);
 
           // 1) 도보시간보다 짧으면 제거
@@ -299,8 +300,8 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
       const [idx0, idx1, idx2] = transitIdxs;
 
       // 환승 도보시간(버퍼)
-      const walk1 = computeTransferBufferMin(subPaths, idx0, idx1); // 1→2
-      const walk2 = computeTransferBufferMin(subPaths, idx1, idx2); // 2→3
+      const walk1 = await computeTransferBufferMin(subPaths, idx0, idx1); // 1→2
+      const walk2 = await computeTransferBufferMin(subPaths, idx1, idx2); // 2→3
       console.debug('🔎 transfer buffers', { walk1, walk2 });
 
       // 🔧 새 빌더로 두 환승쌍 생성(도보시간은 빌더에서 이미 반영하므로 이후 추가 차감 금지)
