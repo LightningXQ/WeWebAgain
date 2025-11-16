@@ -120,57 +120,66 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
   return out;
 }
 
+    // [수정됨] getAllMinWaitPairs 함수: 환승 도보 버퍼(walkBufferMin)를 포함해서 1:1 매칭
+    // scheduleA: 첫 구간 출발표, scheduleB: 두 번째 구간 출발표
+    // walkBufferMin: 환승 사이 실제 도보 시간(분) - 이 시간 이후의 B 중 가장 이른 것 선택
+    function getAllMinWaitPairs(scheduleA, scheduleB, fromSection, toSection, walkBufferMin = 0) {
+    const aMinutes = scheduleA.map(toMin);
+    const bMinutes = scheduleB.map(toMin);
 
-// [수정됨] getAllMinWaitPairs 함수: 하드코딩된 최소 3분 대기 조건을 제거
-// A 열차 도착 직후 B 열차가 언제 있는지 찾아서 두 열차 간 대기시간 구함
-  function getAllMinWaitPairs(scheduleA, scheduleB, fromSection, toSection) {
-    const aMinutes = scheduleA.map(toMin);
-    const bMinutes = scheduleB.map(toMin);
+    const results = [];
+    for (let i = 0; i < aMinutes.length; i++) {
+        const aTime = aMinutes[i];
 
-    const results = [];
-    for (let i = 0; i < aMinutes.length; i++) {
-      const aTime = aMinutes[i];
+        const sectionTimeA = fromSection?.sectionTime || 0;
+        const sectionTimeB = toSection?.sectionTime || 0;
 
-      const sectionTimeA = fromSection?.sectionTime || 0;
-      const sectionTimeB = toSection?.sectionTime || 0;
+        // 1) 첫 구간 하차 시각(플랫폼 도착 시각)
+        const baseAlight = aTime + sectionTimeA;
 
-      const arrivalTime = aTime + sectionTimeA; // 첫 구간 하차(=지금의 from)
+        // 2) 도보까지 포함한 후, 실제로 두 번째 구간을 탈 수 있는 최소 시각
+        const earliestBoard = baseAlight + (walkBufferMin || 0);
 
-      // ✅ A 도착시각 서비스 윈도우 체크 (05:00~24:00)
-      if (!isWithinServiceMin(arrivalTime)) continue;
+        // 플랫폼 도착 시각 서비스 윈도우 체크
+        if (!isWithinServiceMin(baseAlight)) continue;
 
-      const bMatch =  bMinutes.find(bTime => bTime >= arrivalTime); // ✅ 도착 이후 // 두 번째 탑승(=지금의 to)
-      if (bMatch !== undefined) {
-        const waitMinutes = bMatch - arrivalTime;
-        // ✅ [수정] B 출발이 서비스 윈도우 안인지 확인 (최소 대기시간 3분 조건 삭제)
-        if (isWithinServiceMin(bMatch)) {
-          // ✅ 새로 계산할 4개 시각(모두 "HH:MM" 문자열)
-          const firstBoardAt   = toTime(aTime);
-          const firstAlightAt  = toTime(arrivalTime);            // 기존 from
-          const secondBoardAt  = toTime(bMatch);                 // 기존 to
-          const secondAlightAt = toTime(bMatch + sectionTimeB);   // 새로 추가
+        // 3) earliestBoard 이후의 B 중 가장 빠른 것
+        const bMatch = bMinutes.find(bTime => bTime >= earliestBoard);
+        if (bMatch === undefined) continue;
 
-          results.push({
-            // (기존 값 유지 - 하위 로직 호환)
-            from: firstAlightAt,
-            to: secondBoardAt,
-            waitMinutes,
-            fromLine: fromSection?.subwayCode || null,
-            fromStation: fromSection.endName,
-            toLine: toSection?.subwayCode || null,
-            toStation: toSection.startName,
-            firstBoardAt,
-            firstAlightAt,
-            secondBoardAt,
-            secondAlightAt
-          
-          });
-        }
-      }
-    }
+        // B 출발이 서비스 윈도우 안인지 확인
+        if (!isWithinServiceMin(bMatch)) continue;
 
-    return results;
-  }
+        // 4) "도보를 다 포함한 뒤 남는 순수 대기시간"
+        const waitMinutes = bMatch - earliestBoard;
+
+        // 새로 계산할 4개 시각(모두 "HH:MM" 문자열)
+        const firstBoardAt   = toTime(aTime);
+        const firstAlightAt  = toTime(baseAlight);           // 플랫폼 도착
+        const secondBoardAt  = toTime(bMatch);               // 두 번째 구간 탑승
+        const secondAlightAt = toTime(bMatch + sectionTimeB);
+
+        results.push({
+        from: firstAlightAt,   // 첫 구간 하차 시각
+        to:   secondBoardAt,   // 두 번째 구간 탑승 시각
+        waitMinutes,           // 도보 이후 남는 순수 대기 시간
+
+        fromLine: fromSection?.subwayCode || null,
+        fromStation: fromSection.endName,
+        toLine: toSection?.subwayCode || null,
+        toStation: toSection.startName,
+
+        firstBoardAt,
+        firstAlightAt,
+        secondBoardAt,
+        secondAlightAt
+        });
+    }
+
+    return results;
+    }
+
+
 
   //대기시간 목록 중에 중복 출발(or 도착) 제거하고 대기 시간이 가장 짧은 쌍만 남김
   function getUniqueMinWaits(pairs, useFromAsKey) {
@@ -200,14 +209,13 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
     let allTransfers = [];
     let dep2 = [];  
 
-    if (result.length === 2) {
+    if (result.length === 2) {
 
-       const dep1 = await fetchDeparturesForSection(result[0].subPath, day);
-        dep2 = await fetchDeparturesForSection(result[1].subPath, day);
+        const dep1 = await fetchDeparturesForSection(result[0].subPath, day);
+        dep2       = await fetchDeparturesForSection(result[1].subPath, day);
 
-        console.log("🔁 dep1 count:", dep1.length);
-        console.log("🔁 dep2 count:", dep2.length);
-
+        console.log("🔁 dep1 count:", dep1.length);
+        console.log("🔁 dep2 count:", dep2.length);
         console.log("🚇 dep2(지하철) sample:", dep2.slice(0,5));
 
         // dep1, dep2 받은 직후에 추가
@@ -215,56 +223,57 @@ function buildPairs_Mid_to_Next_using_MidArr(arrMid_at_to, depNext_at_to, walk23
         const ok2 = Array.isArray(dep2) && dep2.length > 0;
         const timetableCandidate = ok1 && ok2;
 
+        // ✅ 첫 번째 구간이 버스일 때, 시작/다음 정류장과 샘플 시간 확인 (기존 코드 유지)
+        if (result[0].subPath?.trafficType === 2) {
+        const sp = result[0].subPath;
+        const list = sp?.passStopList?.stations?.map(s => s.stationName) || [];
+        const start = sp?.startName;
+        const idx = list.indexOf(start);
+        const next = (idx >= 0 && idx < list.length - 1) ? list[idx + 1] : null;
 
-        // ✅ [추가] 첫 번째 구간이 버스일 때, 시작/다음 정류장과 샘플 시간 확인
-        if (result[0].subPath?.trafficType === 2) {
-          const sp = result[0].subPath;
-          const list = sp?.passStopList?.stations?.map(s => s.stationName) || [];
-          const start = sp?.startName;
-          const idx = list.indexOf(start);
-          const next = (idx >= 0 && idx < list.length - 1) ? list[idx + 1] : null;
+        console.log('🚌 dep1(first bus) @START', {
+            route: normalizeBusRouteId(sp?.lane?.[0]?.busNo || sp?.lane?.[0]?.busID || ''),
+            start,
+            next,
+            count: dep1.length,
+            sample: dep1.slice(0, 5)
+        });
+        }
 
-          console.log('🚌 dep1(first bus) @START', {
-            route: normalizeBusRouteId(sp?.lane?.[0]?.busNo || sp?.lane?.[0]?.busID || ''),
-            start,
-            next,
-            count: dep1.length,
-            sample: dep1.slice(0, 5)
-          });
-        }
+        // ✅ 원본 subPaths에서 실제 대중교통 구간 인덱스 계산
+        const transitIdxs = (subPaths || [])
+        .map((p, idx) => ({ p, idx }))
+        .filter(x => x.p && (x.p.trafficType === 1 || x.p.trafficType === 2))
+        .map(x => x.idx);
 
-        const allWaitPairs = getAllMinWaitPairs(dep1, dep2, result[0], result[1]);
+        // ✅ 환승 도보시간(분) 계산 (없으면 0)
+        let walkBufferMin = 0;
+        if (transitIdxs.length >= 2) {
+        walkBufferMin = await computeTransferBufferMin(subPaths, transitIdxs[0], transitIdxs[1]);
+        console.log('🚶 transferBufferMin (2-leg):', walkBufferMin);
+        }
 
-        // 원본 subPaths를 이용해 진짜 대중교통 구간 인덱스 계산
-        const transitIdxs = (subPaths || [])
-          .map((p, idx) => ({ p, idx }))
-          .filter(x => x.p && (x.p.trafficType === 1 || x.p.trafficType === 2))
-          .map(x => x.idx);
+        // ✅ 도보시간을 포함한 기준으로 1:1 매칭
+        const allWaitPairs = getAllMinWaitPairs(
+        dep1,
+        dep2,
+        result[0],
+        result[1],
+        walkBufferMin      // ⬅️ 새로 추가된 인자
+        );
 
-        // 환승 버퍼 반영
-        let pairsFiltered = allWaitPairs;
-        if (transitIdxs.length >= 2) {
-          const walkBufferMin = await computeTransferBufferMin(subPaths, transitIdxs[0], transitIdxs[1]);
-          console.log('🚶 transferBufferMin:', walkBufferMin);
+        // ✅ 이제는 최대 대기시간 초과만 필터링
+        let pairsFiltered = allWaitPairs.filter(p => p.waitMinutes <= MAX_TRANSFER_WAIT_MIN);
 
-          // 1) 도보시간보다 짧으면 제거
-          pairsFiltered = allWaitPairs.filter(p => p.waitMinutes >= walkBufferMin);
+        const useFromAsKey = dep1.length < dep2.length;
+        const uniqueWaitPairs = getUniqueMinWaits(pairsFiltered, useFromAsKey);
+        allTransfers = uniqueWaitPairs;
 
-          // 2) 도보시간 차감(음수→0)
-          pairsFiltered = pairsFiltered.map(p => ({
-            ...p,
-            waitMinutes: Math.max(0, p.waitMinutes - walkBufferMin)
-          }));
-          // 3) 최대 대기시간 초과는 제거
-          pairsFiltered = pairsFiltered.filter(p => p.waitMinutes <= MAX_TRANSFER_WAIT_MIN);
-        }
-
-        const useFromAsKey = dep1.length < dep2.length;
-        const uniqueWaitPairs = getUniqueMinWaits(pairsFiltered, useFromAsKey);
-        allTransfers = uniqueWaitPairs;
         return { transfers: allTransfers, dep2: dep2 || [], timetableCandidate };
 
-    } else if (result.length === 3) {
+    } else if (result.length === 3) {
+        // 이하 3구간 로직은 그대로 유지
+
 
       // ✅ 3구간: 중간구간(두번째 구간)을 드라이버로 환승쌍 생성
       // 스케줄 4종 준비: (연산 예시) 1호선 도착@from, 3호선 출발@from, 3호선 도착@to, 2호선 출발@to
