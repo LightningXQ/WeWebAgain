@@ -48,7 +48,7 @@ async function getWalkTime(sx, sy, ex, ey) { //도보환승시간 계산
     return 0
   }
   const TMAP_APP_KEY = 'WhGcxVojKO7g0CL8lD1NYgw2TiEf2r25qFNDUpOd'; 
-  const url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1';
+  const url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json&callback=result';
 
   try {
     // 1. Tmap API에 POST 방식으로 요청을 보냅니다.
@@ -73,25 +73,29 @@ async function getWalkTime(sx, sy, ex, ey) { //도보환승시간 계산
       }
     );
 
-    // 4. API 응답 데이터에서 필요한 정보를 추출합니다.
-    //    (총 시간, 총 거리는 features 배열의 첫 번째 요소 안에 있습니다.)
-    const properties = response.data.features[0].properties;
-
+    const data = response.data;
+    let jsonData
+    if (data.type === undefined){
+      console.log("string")
+      const cleanedData = data.replace(/[\x00-\x1F\x7F-\x9F]/g, "");
+      jsonData = JSON.parse(cleanedData);
+    }
+    else{
+      console.log("json")
+      jsonData = data
+    }
+    const properties = jsonData.features[0].properties
+    
     const totalTimeInSeconds = properties.totalTime;       // 총 소요 시간 (초 단위)
     const totalDistanceInMeters = properties.totalDistance; // 총 이동 거리 (미터 단위)
 
-    // 5. 추출한 정보를 콘솔에 알아보기 쉽게 출력합니다.
     console.log(`\n🕒 총 소요 시간: ${totalTimeInSeconds}초 (${Math.ceil(totalTimeInSeconds / 60)}분)`);
     console.log(`📏 총 이동 거리: ${totalDistanceInMeters}m`);
     
-    // 6. 총 시간과 총 거리만 담은 새로운 JSON 객체를 반환합니다.
     return totalTimeInSeconds;
 
   } catch (error) {
-    // 7. API 호출 중 에러가 발생하면 , 에러 메시지를 콘솔에 출력합니다.
     console.error('❌ Tmap API 호출 오류:', error.response ? error.response.data : error.message);
-    
-    // 8. 에러 발생 시, null 값을 가진 기본 객체를 반환하여 프로그램 중단을 방지합니다.
     return 0;  // ← 타입 꼬임 방지: 항상 '초' 숫자 반환
   }
 }
