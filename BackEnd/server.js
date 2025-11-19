@@ -17,6 +17,7 @@ const { loadBusCSVsFromDir, busTimetables } = require('./loader/bustimetable');
 const apiRouter = require('./router/apiRouter');
 const transferRouter = require('./router/transferRouter.js');
 const authRouter = require('./router/authRouter.js');
+const savedRouter = require('./router/savedRouter.js')
 
 const app = express();
 const port = 4000;
@@ -63,6 +64,7 @@ db.connect((err) => {
 app.use('/api', apiRouter);
 app.use('/transfer', transferRouter)
 app.use('/auth', authRouter)
+app.use('/saved', savedRouter);
 
 // 테스트용 API
 app.get('/', (req, res) => {
